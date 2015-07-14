@@ -10,7 +10,7 @@
 #define PUMP_ON_TIME 15
 #define LIGHT_ON_TIME (18L * 3600L)
 #define LIGHT_START_TIME (3L * 3600L)
-#define COOL_DOWN 600
+#define COOL_DOWN 600L
 #define CHECK_INTERVAL 60
 
 #endif
