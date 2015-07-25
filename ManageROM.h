@@ -10,7 +10,8 @@ class manageROM {
       unsigned long lightOnTime;
       unsigned long lightStartTime;
       unsigned long coolDown;
-      unsigned long checkInterval;
+      unsigned long moistureInterval;
+      unsigned long heightInterval;
     } static configuration;
     
     static void writeConfiguration(void);
@@ -22,27 +23,31 @@ class manageROM {
     
   public:
     manageROM(
-      unsigned long desiredHumidity,
+      unsigned long desiredMoisture,
       unsigned long pumpOnTime,
       unsigned long lightOnTime,
       unsigned long lightStartTime,
       unsigned long coolDown,
-      unsigned long checkInterval);
+      unsigned long moistureInterval,
+      unsigned long heightInterval);
+      
     manageROM(void);
     
     static void reset(void);    
-    static const unsigned long getDesiredHumidity(void);
+    static const unsigned long getDesiredMoisture(void);
     static const unsigned long getPumpOnTime(void);
     static const unsigned long getLightStartTime(void);
     static const unsigned long getLightOnTime(void);
     static const unsigned long getCoolDownTime(void);
-    static const unsigned long getCheckInterval(void);
+    static const unsigned long getMoistureInterval(void);
+    static const unsigned long getHeightInterval(void);
     static void setDesiredHumidity(unsigned long);
     static void setPumpOnTime(unsigned long);
     static void setLightStartTime(unsigned long);
     static void setLightOnTime(unsigned long);
     static void setCoolDownTime(unsigned long);
-    static unsigned long setCheckInterval(unsigned long);
+    static unsigned long setMoistureInterval(unsigned long);
+    static unsigned long setHeightInterval(unsigned long);
 };
 
 #endif

@@ -7,6 +7,7 @@
 #include "eventCallBack.h"
 #include "SensorConfig.h"
 #include "manageROM.h"
+#include "config.h"
 
 // Third party libraries
 #include <Wire.h>
@@ -23,11 +24,12 @@
 sitter *s;
 manageROM *c;
 logger *loggerDevice;
-unsigned long lastNotified;
 RTC_DS1307 RTC;
+unsigned int heightMeasurements[MEASUREMENTS];
+unsigned int heightMeasures;
 
 generatorDeviceID gID;
-SoftwareSerial ss(11,10);
+SoftwareSerial ss(50,51);
 
 eventStream *e;
 
@@ -39,30 +41,30 @@ time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 void setup () {
   DEBUG_BEGIN(BAUD_RATE);
   Wire.begin();
+  loggerDevice = new logger(SD_ONE, SD_TWO, SD_THREE, SD_FOUR);
+  c = new manageROM;
+  // c->reset();
   setUpClock();
   setUpSitter();
   setUpRadio();
-  loggerDevice = new logger(SD_ONE, SD_TWO, SD_THREE, SD_FOUR);
-  lastNotified = 0;
+  resetFlowerCheck();
+  // Make sure we collect the height regularly
+  Alarm.timerRepeat(c->getHeightInterval(), getHeight);
+  // Check every day if we should switch to flowering
+  Alarm.alarmRepeat(23,00,00,flowerCheck);
  }
 
 void loop()
 {  
   e->check(2);
-  if(s->waterIsLow()) {
-    if(now() - lastNotified > 600) {
-      e->createEvent("", LOW_WATER_ALARM);
-      lastNotified = now();
-    }
-  } else {
-      lastNotified = 0;
-  }
+}
+
+void getHeight(void) {
+  e->createEvent("",GET_DISTANCE);
 }
 
 void setUpSitter(void) {
 
-    c = new manageROM();
-    // c->reset();
     DEBUG("Light on time during setup is " + String(c->getLightOnTime()));
     
     s = new sitter(
@@ -71,6 +73,7 @@ void setUpSitter(void) {
       new light(LIGHT_PIN),
       new fan(FAN_PIN),
       new pump(PUMP_PIN),
+      new sensor(WATER_LEVEL_PIN,WATER_LEVEL_POWER,WATER_LEVEL_SENSOR_POWER_UP,WATER_LEVEL_SENSOR_MAX_VOLTAGE,MAX_WATER_LEVEL,MIN_WATER_LEVEL),
       new sensor(MOISTURE_PIN, MOISTURE_POWER, MOISTURE_SENSOR_POWER_UP,MOISTURE_SENSOR_MAX_VOLTAGE,MAX_MOISTURE,MIN_MOISTURE),
       new sensor(TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,TEMP_SENSOR_MAX_VOLTAGE,MAX_TEMP,MIN_TEMP),
       loggerDevice
@@ -83,6 +86,7 @@ void setUpRadio(void) {
    e = new eventStream(&ss,&gID);
 
    new eventOutgoing(e, s->getHumidity,SET_HUMIDITY,GET_HUMIDITY);
+   new eventOutgoing(e, s->getWaterLevel,SET_WATER_LEVEL,GET_WATER_LEVEL);
    new eventOutgoing(e, s->getTemp,SET_TEMP,GET_TEMP);
    new eventOutgoing(e, s->getTime,SET_TIME,GET_TIME);
    new eventOutgoing(e, s->lightIsOn,SET_LIGHT_ON,GET_LIGHT_ON);
@@ -91,7 +95,7 @@ void setUpRadio(void) {
    
    /* Set up configuration settings */
   
-   new eventOutgoing(e, c->getDesiredHumidity, SET_DESIRED_HUMIDITY,GET_DESIRED_HUMIDITY);
+   new eventOutgoing(e, c->getDesiredMoisture, SET_DESIRED_HUMIDITY,GET_DESIRED_HUMIDITY);
    new eventIncoming(e, c->setDesiredHumidity, SET_DESIRED_HUMIDITY);
    new eventOutgoing(e, c->getLightStartTime, SET_START_TIME, GET_START_TIME);
    new eventIncoming(e, c->setLightStartTime, SET_START_TIME);
@@ -105,6 +109,7 @@ void setUpRadio(void) {
    /* Set up remote devices */
    
    new eventIncoming(e, logDistance, SET_DISTANCE);
+   new eventIncoming(e, logHeight, SET_HEIGHT);
    new eventIncoming(e, logHeightAlert, SET_DISTANCE_ALARM);
 }
 
@@ -118,6 +123,44 @@ void setUpClock(void) {
 //  DEBUG("Current time is - " + String(hour()) + ":" + String(minute()) + " on " + String(month()) + "-" + String(day()) + "-" + String(year()));
 }
 
+void resetFlowerCheck(void) {
+  heightMeasures = 0;
+  for(unsigned int i = 0; i < MEASUREMENTS; i++) heightMeasurements[i] = 0;
+}
+
+void flowerCheck(void) {
+    float flowerAtHeight = (TENT_HEIGHT - (POT_HEIGHT + LIGHT_DISTANCE + LIGHT_ASSEMBLY + LIGHT_HEIGHT))/GROWTH_AFTER_VEG;
+    float dailyMeasurements = (float) heightMeasures <= MEASUREMENTS ? heightMeasures : MEASUREMENTS;
+    float averageHeight = 0.0;
+    if(dailyMeasurements > MIN_MEASUREMENTS) { // If we don't have enough data don't do anything
+      for(unsigned int i = 0; i < dailyMeasurements; i++) averageHeight += heightMeasurements[i];
+      averageHeight /= dailyMeasurements;
+      if(averageHeight >= flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
+        c->setLightOnTime(LIGHT_ON_TIME_FLOWER);
+        c->setLightStartTime(LIGHT_START_TIME_FLOWER);
+      } else if(averageHeight < flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_VEG) {
+        c->setLightOnTime(LIGHT_ON_TIME_VEG);
+        c->setLightStartTime(LIGHT_START_TIME_VEG);
+      }
+      resetFlowerCheck();
+    }
+}
+
+void logHeight(unsigned long h) {
+  char message[100];
+  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
+    hour(),
+    minute(),
+    day(),
+    month(),
+    year(),
+    h);
+  heightMeasurements[heightMeasures % MEASUREMENTS] = h;
+  heightMeasures++;
+  loggerDevice->logMessage("HEIGHT.TXT",message);
+  DEBUG("Plant height is - " + String(h));
+}
+
 void logDistance(unsigned long h) {
     char message[100];
     sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
@@ -127,7 +170,7 @@ void logDistance(unsigned long h) {
       month(),
       year(),
       h);
-  loggerDevice->logMessage("HEIGHT.TXT",message);
+  loggerDevice->logMessage("DISTANCE.TXT",message);
   DEBUG("Distance from light is - " + String(h));
 }
 

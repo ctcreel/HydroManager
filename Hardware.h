@@ -19,10 +19,12 @@
 #define LIGHT_PIN 49
 #define TEMP_POWER 52
 #define MOISTURE_POWER 53
+#define WATER_LEVEL_POWER 22
 
 /*************************/
 /* Devices - analog pins */
 /*************************/
+#define WATER_LEVEL_PIN 13
 #define TEMP_PIN 14
 #define MOISTURE_PIN 15
 

@@ -9,6 +9,7 @@
 /* Definitions for static variables */
 /************************************/
 manageROM *sitter::configuration;
+sensor *sitter::levelSensor;
 sensor *sitter::moistureSensor;
 sensor *sitter::tempSensor;
 light *sitter::lightDevice;
@@ -17,15 +18,17 @@ pump *sitter::pumpDevice;
 logger *sitter::dataLogger;
 byte sitter::lowWaterCount;
 byte sitter::maxLowWaterCount;
+bool sitter::wakeUpAlarmSet;
 
 /********************************/
 /* Methods for the sitter class */
 /********************************/
 
 void sitter::checkAndLog(void) {
-    unsigned int humidity = moistureSensor->getReading();
-    unsigned int temp = tempSensor->getReading();
-    if(humidity < configuration->getDesiredHumidity()) {
+    unsigned int humidity = getHumidity();
+    unsigned int temp = getTemp();
+    unsigned int resevoirLevel = getWaterLevel();
+    if(humidity < configuration->getDesiredMoisture()) {
         pumpDevice->turnOn(configuration->getPumpOnTime());
         lowWaterCount++;
     } else {
@@ -33,7 +36,7 @@ void sitter::checkAndLog(void) {
     }
     
     char message[100];
-    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%s,%s,%s,%d,%d",
+    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%s,%s,%s,%d,%d,%d",
       hour(),
       minute(),
       day(),
@@ -43,7 +46,8 @@ void sitter::checkAndLog(void) {
       lightDevice->isOn() ? "on" : "off",
       fanDevice->isOn() ? "on" : "off",
       humidity,
-      temp);
+      temp,
+      resevoirLevel);
     
     dataLogger->logMessage("datafile.txt",message);
     DEBUG("Log entry - " + String(message));
@@ -55,9 +59,17 @@ void sitter::turnOnLightAndFan(unsigned long timeOn) {
 }
 
 void sitter::dailySetup(void) {
-  unsigned long current = (second() + (((unsigned long) minute())*60) + (((unsigned long) hour())*3600));
-  turnOnLightAndFan((configuration->getLightStartTime() + configuration->getLightOnTime()) - current);
-  DEBUG("Current seconds is - "+String(current)+" Current start time is "+String(configuration->getLightStartTime()) + " End time is " + String(configuration->getLightStartTime() + configuration->getLightOnTime()));
+  const unsigned long current = (second() + (((unsigned long) minute())*60) + (((unsigned long) hour())*3600));
+  const unsigned long startTime = configuration->getLightStartTime();
+  const unsigned long endTime = startTime + configuration->getLightOnTime();
+  if(current >= 0 && current < startTime) {
+    // Looks like a normal cycle so schedule wake-up alarm
+    Alarm.timerOnce(startTime, dailySetup);
+  } else if(current >= startTime && current < endTime) {
+    // Looks like we woke up after the wake-up alarm but before the day is over
+    // Turn the light on for the remainder of the day.
+    turnOnLightAndFan(endTime - current);
+  }
 }
 
 sitter::sitter(
@@ -66,12 +78,14 @@ sitter::sitter(
   light *ld,
   fan *fd,
   pump *pd,
+  sensor *wl,
   sensor *ms,
   sensor *ts,
   logger *dl
 ) {
     maxLowWaterCount = mlwc;
     lowWaterCount = 0;
+    wakeUpAlarmSet = false;
     
     // Configure the components
     configuration = c;
@@ -79,12 +93,13 @@ sitter::sitter(
     fanDevice = fd;
     pumpDevice = pd;
     dataLogger = dl;
+    levelSensor = wl;
     moistureSensor = ms;
     tempSensor = ts;
         
     // Set up the alarms
-    DEBUG("Setting up alarm for checkAndLog every " + String(configuration->getCheckInterval()) + " seconds");
-    Alarm.timerRepeat(configuration->getCheckInterval(), checkAndLog);
+    DEBUG("Setting up alarm for checkAndLog every " + String(configuration->getMoistureInterval()) + " seconds");
+    Alarm.timerRepeat(configuration->getMoistureInterval(), checkAndLog);
     Alarm.alarmRepeat(24,00,00,dailySetup);
     dailySetup();
 }
@@ -119,5 +134,9 @@ const unsigned long sitter::getHumidity(void) {
 
 const unsigned long sitter::getTime(void) {
   return now();
+}
+
+const unsigned long sitter::getWaterLevel(void) {
+  return levelSensor->getReading();
 }
 

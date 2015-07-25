@@ -17,9 +17,11 @@ class sitter {
         static pump *pumpDevice; // pump
         static sensor *moistureSensor; // moisture sensor
         static sensor *tempSensor; // tempreture sensor
+        static sensor *levelSensor; // tempreture sensor
         static logger *dataLogger; // SD logger
         static byte lowWaterCount;
         static byte maxLowWaterCount;
+        static bool wakeUpAlarmSet;
         
         static void checkAndLog(void);
         static void dailySetup(void);
@@ -36,6 +38,7 @@ class sitter {
       static const unsigned long getTemp(void);
       static const unsigned long getHumidity(void);
       static const unsigned long getTime(void);
+      static const unsigned long getWaterLevel(void);
       
       sitter(
           byte maxLowWaterCount,
@@ -43,6 +46,7 @@ class sitter {
           light *lightDevice,
           fan *fanDevice,
           pump *pumpDevice,
+          sensor *level,
           sensor *moisture,
           sensor *temp,
           logger *dataLogger

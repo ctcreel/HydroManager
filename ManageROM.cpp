@@ -5,7 +5,7 @@
 
 manageROM::layout manageROM::configuration;
 
-const unsigned long manageROM::getDesiredHumidity(void) {
+const unsigned long manageROM::getDesiredMoisture(void) {
   return configuration.desiredHumidity;
 }
 
@@ -25,9 +25,14 @@ const unsigned long manageROM::getCoolDownTime(void) {
   return configuration.coolDown;
 }
 
-const unsigned long manageROM::getCheckInterval(void) {
-  return configuration.checkInterval;
+const unsigned long manageROM::getMoistureInterval(void) {
+  return configuration.moistureInterval;
 }
+
+const unsigned long manageROM::getHeightInterval(void) {
+  return configuration.heightInterval;
+}
+
 
 void manageROM::setDesiredHumidity(unsigned long v) {
   configuration.desiredHumidity = v;
@@ -49,8 +54,13 @@ void manageROM::setCoolDownTime(unsigned long v) {
   writeConfiguration();
 }
  
-unsigned long manageROM::setCheckInterval(unsigned long v) {
-  configuration.checkInterval = v;
+unsigned long manageROM::setMoistureInterval(unsigned long v) {
+  configuration.moistureInterval = v;
+  writeConfiguration();
+}
+
+unsigned long manageROM::setHeightInterval(unsigned long v) {
+  configuration.heightInterval = v;
   writeConfiguration();
 }
 
@@ -73,7 +83,8 @@ manageROM::manageROM(
     unsigned long lot,
     unsigned long lst,
     unsigned long cd,
-    unsigned long ci) {
+    unsigned long mi,
+    unsigned long hi) {
   DEBUG("Initializing device");
   configuration.initialized = INITIALIZATION_CODE;
   configuration.desiredHumidity = dh;
@@ -81,7 +92,8 @@ manageROM::manageROM(
   configuration.lightOnTime = lot;
   configuration.lightStartTime = lst;
   configuration.coolDown = cd;
-  configuration.checkInterval = ci;
+  configuration.moistureInterval = mi;
+  configuration.heightInterval = hi;
   writeConfiguration();
 }
 
@@ -97,9 +109,9 @@ void manageROM::reset(void) {
     configuration.initialized = INITIALIZATION_CODE;
     configuration.desiredHumidity = DESIRED_HUMIDITY;
     configuration.pumpOnTime = PUMP_ON_TIME;
-    configuration.lightOnTime = LIGHT_ON_TIME;
-    configuration.lightStartTime = LIGHT_START_TIME;
+    configuration.lightOnTime = LIGHT_ON_TIME_VEG;
+    configuration.lightStartTime = LIGHT_START_TIME_VEG;
     configuration.coolDown = COOL_DOWN;
-    configuration.checkInterval = CHECK_INTERVAL;
+    configuration.moistureInterval = CHECK_MOISTURE_INTERVAL;
     writeConfiguration();
 }
