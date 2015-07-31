@@ -28,6 +28,8 @@
 #define SET_DISTANCE 25
 #define SET_DISTANCE_ALARM 26
 #define SET_HEIGHT 27
+#define GET_GROW_MODE 28
+#define SET_GROW_MODE 29
 
 #define BAUD_RATE 19200
 

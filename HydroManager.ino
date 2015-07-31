@@ -16,7 +16,6 @@
 #include <TimeAlarms.h>
 #include <SPI.h>
 #include <SD.h>
-#include <SoftwareSerial.h>
 #include <TextFinder.h>
 #include <EEPROM.h>
 #include <EEPROMAnything.h>
@@ -29,9 +28,13 @@ unsigned int heightMeasurements[MEASUREMENTS];
 unsigned int heightMeasures;
 
 generatorDeviceID gID;
-SoftwareSerial ss(50,51);
 
 eventStream *e;
+
+
+class environment {
+
+};
 
 time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 {
@@ -43,13 +46,14 @@ void setup () {
   Wire.begin();
   loggerDevice = new logger(SD_ONE, SD_TWO, SD_THREE, SD_FOUR);
   c = new manageROM;
-  // c->reset();
+  //c->reset();
   setUpClock();
   setUpSitter();
   setUpRadio();
   resetFlowerCheck();
   // Make sure we collect the height regularly
   Alarm.timerRepeat(c->getHeightInterval(), getHeight);
+  DEBUG("Height Interval "+String(c->getHeightInterval()));
   // Check every day if we should switch to flowering
   Alarm.alarmRepeat(23,00,00,flowerCheck);
  }
@@ -82,8 +86,8 @@ void setUpSitter(void) {
 
 void setUpRadio(void) {
 
-   ss.begin(BAUD_RATE);
-   e = new eventStream(&ss,&gID);
+   Serial3.begin(BAUD_RATE);
+   e = new eventStream(&Serial3,&gID);
 
    new eventOutgoing(e, s->getHumidity,SET_HUMIDITY,GET_HUMIDITY);
    new eventOutgoing(e, s->getWaterLevel,SET_WATER_LEVEL,GET_WATER_LEVEL);
@@ -111,6 +115,8 @@ void setUpRadio(void) {
    new eventIncoming(e, logDistance, SET_DISTANCE);
    new eventIncoming(e, logHeight, SET_HEIGHT);
    new eventIncoming(e, logHeightAlert, SET_DISTANCE_ALARM);
+
+   new eventOutgoing(e, getGrowMode, SET_GROW_MODE, GET_GROW_MODE);
 }
 
 void setUpClock(void) {
@@ -130,9 +136,9 @@ void resetFlowerCheck(void) {
 
 void flowerCheck(void) {
     float flowerAtHeight = (TENT_HEIGHT - (POT_HEIGHT + LIGHT_DISTANCE + LIGHT_ASSEMBLY + LIGHT_HEIGHT))/GROWTH_AFTER_VEG;
-    float dailyMeasurements = (float) heightMeasures <= MEASUREMENTS ? heightMeasures : MEASUREMENTS;
+    float dailyMeasurements = (float) heightMeasures < MEASUREMENTS ? heightMeasures : MEASUREMENTS;
     float averageHeight = 0.0;
-    if(dailyMeasurements > MIN_MEASUREMENTS) { // If we don't have enough data don't do anything
+    if(dailyMeasurements >= MIN_MEASUREMENTS) { // If we don't have enough so data don't do anything
       for(unsigned int i = 0; i < dailyMeasurements; i++) averageHeight += heightMeasurements[i];
       averageHeight /= dailyMeasurements;
       if(averageHeight >= flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
@@ -144,6 +150,16 @@ void flowerCheck(void) {
       }
       resetFlowerCheck();
     }
+}
+
+const unsigned long getGrowMode(void) {
+  if(c->getLightOnTime() == LIGHT_ON_TIME_FLOWER) {
+    return 1;
+  } else if(c->getLightOnTime() == LIGHT_ON_TIME_VEG) {
+    return 0;
+  } else {
+    return 3;
+  }
 }
 
 void logHeight(unsigned long h) {
