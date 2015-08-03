@@ -30,6 +30,7 @@
 #define SET_HEIGHT 27
 #define GET_GROW_MODE 28
 #define SET_GROW_MODE 29
+#define START_FLOWERING 30
 
 #define BAUD_RATE 19200
 

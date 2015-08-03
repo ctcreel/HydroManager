@@ -144,12 +144,35 @@ void flowerCheck(void) {
       if(averageHeight >= flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
         c->setLightOnTime(LIGHT_ON_TIME_FLOWER);
         c->setLightStartTime(LIGHT_START_TIME_FLOWER);
+        startFlowering();
       } else if(averageHeight < flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_VEG) {
         c->setLightOnTime(LIGHT_ON_TIME_VEG);
         c->setLightStartTime(LIGHT_START_TIME_VEG);
       }
       resetFlowerCheck();
     }
+}
+
+void startFlowering(void) {
+  static unsigned int start;
+  if(start < 12) {
+    start++;
+    Alarm.timerOnce(300, startFlowering);
+    e->createEvent("",START_FLOWERING);
+  } else {
+    logStartFlowering();
+  }
+}
+
+void logStartFlowering(void) {
+    char message[100];
+    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
+      hour(),
+      minute(),
+      day(),
+      month(),
+      year());
+  loggerDevice->logMessage("FLOWERING.TXT",message);
 }
 
 const unsigned long getGrowMode(void) {
