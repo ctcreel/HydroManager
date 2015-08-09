@@ -109,9 +109,10 @@ void manageROM::reset(void) {
     configuration.initialized = INITIALIZATION_CODE;
     configuration.desiredHumidity = DESIRED_HUMIDITY;
     configuration.pumpOnTime = PUMP_ON_TIME;
-    configuration.lightOnTime = LIGHT_ON_TIME_VEG;
-    configuration.lightStartTime = LIGHT_START_TIME_VEG;
+    configuration.lightOnTime = LIGHT_ON_TIME_FLOWER;
+    configuration.lightStartTime = LIGHT_START_TIME_FLOWER;
     configuration.coolDown = COOL_DOWN;
     configuration.moistureInterval = CHECK_MOISTURE_INTERVAL;
+    configuration.heightInterval = CHECK_HEIGHT_INTERVAL;
     writeConfiguration();
 }

@@ -17,13 +17,12 @@
 #define CHECK_HEIGHT_INTERVAL 3600
 
 /* Environment settings */
-#define HEIGHT_STABLE 4
-#define TENT_HEIGHT  70.0
+#define TENT_HEIGHT  77.0
 #define POT_HEIGHT  15.0
 #define LIGHT_DISTANCE 18.0
-#define LIGHT_ASSEMBLY  6.0
+#define LIGHT_ASSEMBLY  3.0
 #define LIGHT_HEIGHT 3.0
-#define GROWTH_AFTER_VEG  1.4
+#define GROWTH_AFTER_VEG  1.8
 #define MEASUREMENTS 100
 #define MIN_MEASUREMENTS 5
 

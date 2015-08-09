@@ -8,6 +8,8 @@
 #include "SensorConfig.h"
 #include "manageROM.h"
 #include "config.h"
+#include "Sensors.h"
+#include "DHT.h"
 
 // Third party libraries
 #include <Wire.h>
@@ -16,7 +18,6 @@
 #include <TimeAlarms.h>
 #include <SPI.h>
 #include <SD.h>
-#include <SoftwareSerial.h>
 #include <TextFinder.h>
 #include <EEPROM.h>
 #include <EEPROMAnything.h>
@@ -29,9 +30,13 @@ unsigned int heightMeasurements[MEASUREMENTS];
 unsigned int heightMeasures;
 
 generatorDeviceID gID;
-SoftwareSerial ss(50,51);
 
 eventStream *e;
+
+
+class environment {
+
+};
 
 time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 {
@@ -43,13 +48,14 @@ void setup () {
   Wire.begin();
   loggerDevice = new logger(SD_ONE, SD_TWO, SD_THREE, SD_FOUR);
   c = new manageROM;
-  // c->reset();
+  //c->reset();
   setUpClock();
   setUpSitter();
   setUpRadio();
   resetFlowerCheck();
   // Make sure we collect the height regularly
   Alarm.timerRepeat(c->getHeightInterval(), getHeight);
+  DEBUG("Height Interval "+String(c->getHeightInterval()));
   // Check every day if we should switch to flowering
   Alarm.alarmRepeat(23,00,00,flowerCheck);
  }
@@ -66,6 +72,8 @@ void getHeight(void) {
 void setUpSitter(void) {
 
     DEBUG("Light on time during setup is " + String(c->getLightOnTime()));
+
+    TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,
     
     s = new sitter(
       10, // maximum low water counts before notification
@@ -73,21 +81,21 @@ void setUpSitter(void) {
       new light(LIGHT_PIN),
       new fan(FAN_PIN),
       new pump(PUMP_PIN),
-      new sensor(WATER_LEVEL_PIN,WATER_LEVEL_POWER,WATER_LEVEL_SENSOR_POWER_UP,WATER_LEVEL_SENSOR_MAX_VOLTAGE,MAX_WATER_LEVEL,MIN_WATER_LEVEL),
-      new sensor(MOISTURE_PIN, MOISTURE_POWER, MOISTURE_SENSOR_POWER_UP,MOISTURE_SENSOR_MAX_VOLTAGE,MAX_MOISTURE,MIN_MOISTURE),
-      new sensor(TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,TEMP_SENSOR_MAX_VOLTAGE,MAX_TEMP,MIN_TEMP),
+      new sensorAnalog(WATER_LEVEL_PIN,WATER_LEVEL_POWER,WATER_LEVEL_SENSOR_POWER_UP,MAX_WATER_LEVEL,MIN_WATER_LEVEL),
+      new sensorAnalog(MOISTURE_PIN, MOISTURE_POWER, MOISTURE_SENSOR_POWER_UP,MAX_MOISTURE,MIN_MOISTURE),
+      new sensorAnalog(TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,MAX_TEMP,MIN_TEMP),
       loggerDevice
    );
 }
 
 void setUpRadio(void) {
 
-   ss.begin(BAUD_RATE);
-   e = new eventStream(&ss,&gID);
+   Serial3.begin(BAUD_RATE);
+   e = new eventStream(&Serial3,&gID);
 
-   new eventOutgoing(e, s->getHumidity,SET_HUMIDITY,GET_HUMIDITY);
+   new eventOutgoing(e, s->getHumidity,SET_MOISTURE,GET_MOISTURE);
    new eventOutgoing(e, s->getWaterLevel,SET_WATER_LEVEL,GET_WATER_LEVEL);
-   new eventOutgoing(e, s->getTemp,SET_TEMP,GET_TEMP);
+   new eventOutgoing(e, s->getTemp,SET_SOIL_TEMP,GET_SOIL_TEMP);
    new eventOutgoing(e, s->getTime,SET_TIME,GET_TIME);
    new eventOutgoing(e, s->lightIsOn,SET_LIGHT_ON,GET_LIGHT_ON);
    new eventOutgoing(e, s->fanIsOn,SET_FAN_ON,GET_FAN_ON);
@@ -95,8 +103,8 @@ void setUpRadio(void) {
    
    /* Set up configuration settings */
   
-   new eventOutgoing(e, c->getDesiredMoisture, SET_DESIRED_HUMIDITY,GET_DESIRED_HUMIDITY);
-   new eventIncoming(e, c->setDesiredHumidity, SET_DESIRED_HUMIDITY);
+   new eventOutgoing(e, c->getDesiredMoisture, SET_DESIRED_MOISTURE,GET_DESIRED_MOISTURE);
+   new eventIncoming(e, c->setDesiredHumidity, SET_DESIRED_MOISTURE);
    new eventOutgoing(e, c->getLightStartTime, SET_START_TIME, GET_START_TIME);
    new eventIncoming(e, c->setLightStartTime, SET_START_TIME);
    new eventOutgoing(e, c->getLightOnTime, SET_TIME_ON, GET_TIME_ON);
@@ -111,6 +119,8 @@ void setUpRadio(void) {
    new eventIncoming(e, logDistance, SET_DISTANCE);
    new eventIncoming(e, logHeight, SET_HEIGHT);
    new eventIncoming(e, logHeightAlert, SET_DISTANCE_ALARM);
+
+   new eventOutgoing(e, getGrowMode, SET_GROW_MODE, GET_GROW_MODE);
 }
 
 void setUpClock(void) {
@@ -130,20 +140,53 @@ void resetFlowerCheck(void) {
 
 void flowerCheck(void) {
     float flowerAtHeight = (TENT_HEIGHT - (POT_HEIGHT + LIGHT_DISTANCE + LIGHT_ASSEMBLY + LIGHT_HEIGHT))/GROWTH_AFTER_VEG;
-    float dailyMeasurements = (float) heightMeasures <= MEASUREMENTS ? heightMeasures : MEASUREMENTS;
+    float dailyMeasurements = (float) heightMeasures < MEASUREMENTS ? heightMeasures : MEASUREMENTS;
     float averageHeight = 0.0;
-    if(dailyMeasurements > MIN_MEASUREMENTS) { // If we don't have enough data don't do anything
+    if(dailyMeasurements >= MIN_MEASUREMENTS) { // If we don't have enough so data don't do anything
       for(unsigned int i = 0; i < dailyMeasurements; i++) averageHeight += heightMeasurements[i];
       averageHeight /= dailyMeasurements;
       if(averageHeight >= flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
         c->setLightOnTime(LIGHT_ON_TIME_FLOWER);
         c->setLightStartTime(LIGHT_START_TIME_FLOWER);
+        startFlowering();
       } else if(averageHeight < flowerAtHeight && c->getLightOnTime() != LIGHT_ON_TIME_VEG) {
         c->setLightOnTime(LIGHT_ON_TIME_VEG);
         c->setLightStartTime(LIGHT_START_TIME_VEG);
       }
       resetFlowerCheck();
     }
+}
+
+void startFlowering(void) {
+  static unsigned int start;
+  if(start < 12) {
+    start++;
+    Alarm.timerOnce(300, startFlowering);
+    e->createEvent("",START_FLOWERING);
+  } else {
+    logStartFlowering();
+  }
+}
+
+void logStartFlowering(void) {
+    char message[100];
+    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
+      hour(),
+      minute(),
+      day(),
+      month(),
+      year());
+  loggerDevice->logMessage("FLOWERING.TXT",message);
+}
+
+const unsigned long getGrowMode(void) {
+  if(c->getLightOnTime() == LIGHT_ON_TIME_FLOWER) {
+    return 1;
+  } else if(c->getLightOnTime() == LIGHT_ON_TIME_VEG) {
+    return 0;
+  } else {
+    return 3;
+  }
 }
 
 void logHeight(unsigned long h) {
