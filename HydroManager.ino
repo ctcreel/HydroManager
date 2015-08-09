@@ -8,6 +8,8 @@
 #include "SensorConfig.h"
 #include "manageROM.h"
 #include "config.h"
+#include "Sensors.h"
+#include "DHT.h"
 
 // Third party libraries
 #include <Wire.h>
@@ -70,6 +72,8 @@ void getHeight(void) {
 void setUpSitter(void) {
 
     DEBUG("Light on time during setup is " + String(c->getLightOnTime()));
+
+    TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,
     
     s = new sitter(
       10, // maximum low water counts before notification
@@ -77,9 +81,9 @@ void setUpSitter(void) {
       new light(LIGHT_PIN),
       new fan(FAN_PIN),
       new pump(PUMP_PIN),
-      new sensor(WATER_LEVEL_PIN,WATER_LEVEL_POWER,WATER_LEVEL_SENSOR_POWER_UP,WATER_LEVEL_SENSOR_MAX_VOLTAGE,MAX_WATER_LEVEL,MIN_WATER_LEVEL),
-      new sensor(MOISTURE_PIN, MOISTURE_POWER, MOISTURE_SENSOR_POWER_UP,MOISTURE_SENSOR_MAX_VOLTAGE,MAX_MOISTURE,MIN_MOISTURE),
-      new sensor(TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,TEMP_SENSOR_MAX_VOLTAGE,MAX_TEMP,MIN_TEMP),
+      new sensorAnalog(WATER_LEVEL_PIN,WATER_LEVEL_POWER,WATER_LEVEL_SENSOR_POWER_UP,MAX_WATER_LEVEL,MIN_WATER_LEVEL),
+      new sensorAnalog(MOISTURE_PIN, MOISTURE_POWER, MOISTURE_SENSOR_POWER_UP,MAX_MOISTURE,MIN_MOISTURE),
+      new sensorAnalog(TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,MAX_TEMP,MIN_TEMP),
       loggerDevice
    );
 }
@@ -89,9 +93,9 @@ void setUpRadio(void) {
    Serial3.begin(BAUD_RATE);
    e = new eventStream(&Serial3,&gID);
 
-   new eventOutgoing(e, s->getHumidity,SET_HUMIDITY,GET_HUMIDITY);
+   new eventOutgoing(e, s->getHumidity,SET_MOISTURE,GET_MOISTURE);
    new eventOutgoing(e, s->getWaterLevel,SET_WATER_LEVEL,GET_WATER_LEVEL);
-   new eventOutgoing(e, s->getTemp,SET_TEMP,GET_TEMP);
+   new eventOutgoing(e, s->getTemp,SET_SOIL_TEMP,GET_SOIL_TEMP);
    new eventOutgoing(e, s->getTime,SET_TIME,GET_TIME);
    new eventOutgoing(e, s->lightIsOn,SET_LIGHT_ON,GET_LIGHT_ON);
    new eventOutgoing(e, s->fanIsOn,SET_FAN_ON,GET_FAN_ON);
@@ -99,8 +103,8 @@ void setUpRadio(void) {
    
    /* Set up configuration settings */
   
-   new eventOutgoing(e, c->getDesiredMoisture, SET_DESIRED_HUMIDITY,GET_DESIRED_HUMIDITY);
-   new eventIncoming(e, c->setDesiredHumidity, SET_DESIRED_HUMIDITY);
+   new eventOutgoing(e, c->getDesiredMoisture, SET_DESIRED_MOISTURE,GET_DESIRED_MOISTURE);
+   new eventIncoming(e, c->setDesiredHumidity, SET_DESIRED_MOISTURE);
    new eventOutgoing(e, c->getLightStartTime, SET_START_TIME, GET_START_TIME);
    new eventIncoming(e, c->setLightStartTime, SET_START_TIME);
    new eventOutgoing(e, c->getLightOnTime, SET_TIME_ON, GET_TIME_ON);
