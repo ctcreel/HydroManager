@@ -35,8 +35,8 @@ class sitter {
       static const unsigned long fanIsOn(void);
       static const unsigned long pumpIsOn(void);
       static const unsigned long waterIsLow(void);
-      static const unsigned long getTemp(void);
-      static const unsigned long getHumidity(void);
+      static const unsigned long getSoilTemp(void);
+      static const unsigned long getMoisture(void);
       static const unsigned long getTime(void);
       static const unsigned long getWaterLevel(void);
       

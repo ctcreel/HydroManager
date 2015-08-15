@@ -25,10 +25,10 @@ bool sitter::wakeUpAlarmSet;
 /********************************/
 
 void sitter::checkAndLog(void) {
-    unsigned int humidity = getHumidity();
-    unsigned int temp = getTemp();
+    unsigned int moisture = getMoisture();
+    unsigned int soilTemp = getSoilTemp();
     unsigned int resevoirLevel = getWaterLevel();
-    if(humidity < configuration->getDesiredMoisture()) {
+    if(moisture < configuration->getDesiredMoisture()) {
         pumpDevice->turnOn(configuration->getPumpOnTime());
         lowWaterCount++;
     } else {
@@ -45,8 +45,8 @@ void sitter::checkAndLog(void) {
       pumpDevice->isOn() ? "on" : "off",
       lightDevice->isOn() ? "on" : "off",
       fanDevice->isOn() ? "on" : "off",
-      humidity,
-      temp,
+      moisture,
+      soilTemp,
       resevoirLevel);
     
     dataLogger->logMessage("datafile.txt",message);
@@ -124,11 +124,11 @@ const unsigned long sitter::lightIsOn(void) {
   return lightDevice->isOn() ? 1 : 0;
 }
 
-const unsigned long sitter::getTemp(void) {
+const unsigned long sitter::getSoilTemp(void) {
   return tempSensor->getReading();
 }
 
-const unsigned long sitter::getHumidity(void) {
+const unsigned long sitter::getMoisture(void) {
   return moistureSensor->getReading();
 }
 

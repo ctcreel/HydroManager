@@ -10,6 +10,7 @@
 #include "config.h"
 #include "Sensors.h"
 #include "DHT.h"
+#include "fogger.h"
 
 // Third party libraries
 #include <Wire.h>
@@ -30,9 +31,9 @@ unsigned int heightMeasurements[MEASUREMENTS];
 unsigned int heightMeasures;
 
 generatorDeviceID gID;
+fogger f(FOGGER_PIN);
 
 eventStream *e;
-
 
 class environment {
 
@@ -55,14 +56,13 @@ void setup () {
   resetFlowerCheck();
   // Make sure we collect the height regularly
   Alarm.timerRepeat(c->getHeightInterval(), getHeight);
-  DEBUG("Height Interval "+String(c->getHeightInterval()));
-  // Check every day if we should switch to flowering
+  Alarm.timerRepeat(60, getHumidityAndTemp);
   Alarm.alarmRepeat(23,00,00,flowerCheck);
  }
 
 void loop()
 {  
-  e->check(2);
+  e->check(0);
 }
 
 void getHeight(void) {
@@ -93,9 +93,9 @@ void setUpRadio(void) {
    Serial3.begin(BAUD_RATE);
    e = new eventStream(&Serial3,&gID);
 
-   new eventOutgoing(e, s->getHumidity,SET_MOISTURE,GET_MOISTURE);
+   new eventOutgoing(e, s->getMoisture,SET_MOISTURE,GET_MOISTURE);
    new eventOutgoing(e, s->getWaterLevel,SET_WATER_LEVEL,GET_WATER_LEVEL);
-   new eventOutgoing(e, s->getTemp,SET_SOIL_TEMP,GET_SOIL_TEMP);
+   new eventOutgoing(e, s->getSoilTemp,SET_SOIL_TEMP,GET_SOIL_TEMP);
    new eventOutgoing(e, s->getTime,SET_TIME,GET_TIME);
    new eventOutgoing(e, s->lightIsOn,SET_LIGHT_ON,GET_LIGHT_ON);
    new eventOutgoing(e, s->fanIsOn,SET_FAN_ON,GET_FAN_ON);
@@ -119,7 +119,9 @@ void setUpRadio(void) {
    new eventIncoming(e, logDistance, SET_DISTANCE);
    new eventIncoming(e, logHeight, SET_HEIGHT);
    new eventIncoming(e, logHeightAlert, SET_DISTANCE_ALARM);
-
+   new eventIncoming(e, logAirTemp, SET_AIR_TEMP);
+   new eventIncoming(e, setHumidity, SET_HUMIDITY);
+   
    new eventOutgoing(e, getGrowMode, SET_GROW_MODE, GET_GROW_MODE);
 }
 
@@ -230,3 +232,44 @@ void logHeightAlert(unsigned long h) {
   Serial.print("Distance alert - ");
   Serial.println(message);
 }
+
+
+void logAirTemp(unsigned long h) {
+    char message[100];
+    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
+      hour(),
+      minute(),
+      day(),
+      month(),
+      year(),
+      h);
+  loggerDevice->logMessage("AIRTEMP.TXT",message);
+  DEBUG("Air temp is - " + String(h));
+}
+
+void setHumidity(const unsigned long h) {
+    char message[100];
+    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
+      hour(),
+      minute(),
+      day(),
+       month(),
+      year(),
+      h);
+  loggerDevice->logMessage("HUMIDITY.TXT",message);
+  Serial.print("Humidity is - ");
+  Serial.println(message);
+  
+  if((getGrowMode()==0 && h < 65) || (getGrowMode()==1 && h < 50)) {
+    if(!f.isOn()) {
+      f.turnOn(600);
+    }
+  }
+}
+
+void getHumidityAndTemp(void) {
+  Serial.println("Get humidity!");
+  e->createEvent("",GET_HUMIDITY);
+  e->createEvent("",GET_AIR_TEMP);
+}
+
