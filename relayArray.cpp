@@ -42,6 +42,26 @@ void relayArray::turnOffFour(void) {
 }
 
 
+void relayArray::turnOnOne(void) {
+    relayOne->turnOn();
+    DEBUG("Turning relayOne on");
+}
+
+void relayArray::turnOnTwo(void) {
+    relayTwo->turnOn();
+    DEBUG("Turning relayTwo on");
+}
+
+void relayArray::turnOnThree(void) {
+    relayThree->turnOn();
+    DEBUG("Turning relayThree on");
+}
+
+void relayArray::turnOnFour(void) {
+    relayFour->turnOn();
+    DEBUG("Turning relayFour on");
+}
+
 void relayArray::turnOnOne(unsigned long timeOn) {
     if(relayOne->turnOn()){
         Alarm.timerOnce(timeOn, turnOffOne);
@@ -85,3 +105,4 @@ const boolean relayArray::isOnThree(void) {
 const boolean relayArray::isOnFour(void) {
   return relayFour->isOn();
 };
+

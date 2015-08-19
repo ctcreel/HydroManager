@@ -118,7 +118,7 @@ void dailySetup(void) {
     // Turn the light on for the remainder of the day.
     unsigned long timeOn = endTime - current;
     array.turnOnOne(timeOn);
-    array.turnOnTwo(timeOn + c.getCoolDownTime());
+    array.turnOnTwo(timeOn);
   }
 }
 
@@ -159,10 +159,20 @@ void startFlowering(void) {
 
 void setHumidity(const unsigned long h) {
   logValue("HUMIDITY.TXT",h);
-  
-  if((getGrowMode()==0 && h < 65) || (getGrowMode()==1 && h < 50)) {
-    if(!array.isOnFour()) {
-      array.turnOnFour(300);
+
+  if(array.isOnOne()) { 
+    // if the light is on then check the humidity
+    if((getGrowMode()==0 && h < 65) || (getGrowMode()==1 && h < 50)) {
+        array.turnOnFour();
+    } else {
+      array.turnOffFour();
+    }
+  } else { 
+    // if the light and fan are off use the fan to exhause moisture
+    if((getGrowMode()==0 && h > 75) || (getGrowMode()==1 && h > 60)) {
+        array.turnOnTwo();
+    } else {
+      array.turnOffTwo();
     }
   }
 }
