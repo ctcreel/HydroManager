@@ -43,14 +43,19 @@ time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 }
 
 void setup () {
-  // c.reset();
   DEBUG_BEGIN(BAUD_RATE);
+  DEBUG("Starting up!");
+  // c.reset();
   Wire.begin();
   Serial.begin(BAUD_RATE);
 
   /* Set up clock */ 
   RTC.begin();
   setSyncProvider(syncProvider);     //reference our syncProvider function instead of RTC_DS1307::get()
+//  for debugging purposes
+//  setTime(21,29,00,19,8,2015);
+//  RTC.adjust(now());
+//  DEBUG("Current time is - " + String(hour()) + ":" + String(minute()) + " on " + String(month()) + "-" + String(day()) + "-" + String(year()));
 
   /* Set up events */
   Serial3.begin(BAUD_RATE);
@@ -62,6 +67,7 @@ void setup () {
   new eventOutgoing(&e, lightIsOn,SET_LIGHT_ON,GET_LIGHT_ON);
   new eventOutgoing(&e, fanIsOn,SET_FAN_ON,GET_FAN_ON);
   new eventOutgoing(&e, pumpIsOn,SET_PUMP_ON,GET_PUMP_ON);
+  new eventOutgoing(&e, foggerIsOn,SET_FOGGER_ON,GET_FOGGER_ON);
   
   /* Set up configuration settings */
   
@@ -87,18 +93,17 @@ void setup () {
   new eventOutgoing(&e, getGrowMode, SET_GROW_MODE, GET_GROW_MODE);
 
   DEBUG("Light time on - " + String(c.getLightOnTime()));
+  DEBUG("Light start time - " + String(c.getLightStartTime()));
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
   Alarm.timerRepeat(60, getHumidity);
   Alarm.timerRepeat(60, getTemp);
   Alarm.timerRepeat(60, checkMoisture);
-  Alarm.alarmRepeat(23,00,00,flowerCheck);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
   /* Let's get started */
   dailySetup();
-  resetFlowerCheck();
  }
 
 void loop()
@@ -117,9 +122,11 @@ void dailySetup(void) {
     // Looks like we woke up after the wake-up alarm but before the day is over
     // Turn the light on for the remainder of the day.
     unsigned long timeOn = endTime - current;
-    array.turnOnOne(timeOn);
-    array.turnOnTwo(timeOn);
+    array.turnOnOne(timeOn); // Turn on light
+    array.turnOnTwo(timeOn); // Turn on fan
   }
+  // Now check flowering status
+  flowerCheck();
 }
 
 void resetFlowerCheck(void) {
@@ -127,18 +134,20 @@ void resetFlowerCheck(void) {
   for(unsigned int i = 0; i < MEASUREMENTS; i++) heightMeasurements[i] = 0;
 }
 
+float heightAverage(void) {
+  float averageHeight = 0.0;
+  float dailyMeasurements = (float) heightMeasures < MEASUREMENTS ? heightMeasures : MEASUREMENTS;
+  for(unsigned int i = 0; i < dailyMeasurements; i++) averageHeight += heightMeasurements[i];
+  return averageHeight / dailyMeasurements;
+}
 void flowerCheck(void) {
-    float flowerAtHeight = (TENT_HEIGHT - (POT_HEIGHT + LIGHT_DISTANCE + LIGHT_ASSEMBLY + LIGHT_HEIGHT))/GROWTH_AFTER_VEG;
-    float dailyMeasurements = (float) heightMeasures < MEASUREMENTS ? heightMeasures : MEASUREMENTS;
-    float averageHeight = 0.0;
-    if(dailyMeasurements >= MIN_MEASUREMENTS) { // If we don't have enough so data don't do anything
-      for(unsigned int i = 0; i < dailyMeasurements; i++) averageHeight += heightMeasurements[i];
-      averageHeight /= dailyMeasurements;
-      if(averageHeight >= flowerAtHeight && c.getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
+    float averageHeight = heightAverage(); 
+    if(heightMeasures >= MIN_MEASUREMENTS) { // If we don't have enough so data don't do anything
+      if(averageHeight >= FLOWER_AT_HEIGHT && c.getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
         c.setLightOnTime(LIGHT_ON_TIME_FLOWER);
         c.setLightStartTime(LIGHT_START_TIME_FLOWER);
         startFlowering();
-      } else if(averageHeight < flowerAtHeight && c.getLightOnTime() != LIGHT_ON_TIME_VEG) {
+      } else if(averageHeight < FLOWER_AT_HEIGHT && c.getLightOnTime() != LIGHT_ON_TIME_VEG) {
         c.setLightOnTime(LIGHT_ON_TIME_VEG);
         c.setLightStartTime(LIGHT_START_TIME_VEG);
       }
@@ -158,30 +167,29 @@ void startFlowering(void) {
 }
 
 void setHumidity(const unsigned long h) {
-  logValue("HUMIDITY.TXT",h);
+  
+  logHumidity(h);
 
-  if(array.isOnOne()) { 
-    // if the light is on then check the humidity
-    if((getGrowMode()==0 && h < 65) || (getGrowMode()==1 && h < 50)) {
-        array.turnOnFour();
+  if((getGrowMode()==0 && h < 70) || (getGrowMode()==1 && h < 50)) {
+    array.turnOnFour(); // turn on fogger
+  } else {
+    array.turnOffFour(); // turn off fogger
+  }
+  
+  if(!array.isOnOne()) {
+    if((getGrowMode()==0 && h >= 80) || (getGrowMode()==1 && h >= 60)) {
+      array.turnOnTwo(); // turn on fan
     } else {
-      array.turnOffFour();
-    }
-  } else { 
-    // if the light and fan are off use the fan to exhause moisture
-    if((getGrowMode()==0 && h > 75) || (getGrowMode()==1 && h > 60)) {
-        array.turnOnTwo();
-    } else {
-      array.turnOffTwo();
+      array.turnOffTwo(); // turn off fan
     }
   }
 }
 
 void checkMoisture(void) {
   unsigned long moisture = getMoisture();
-  unsigned long soilTemp = getSoilTemp();
-  if(getMoisture() < c.getDesiredMoisture()) {
-    array.turnOnThree(c.getPumpOnTime());
+  logMoisture(moisture);
+  if(moisture < c.getDesiredMoisture()) {
+    array.turnOnThree(c.getPumpOnTime()); // turn on pump
   }
 }
 
@@ -221,6 +229,10 @@ const unsigned long pumpIsOn(void) {
   return array.isOnThree() ? 1 : 0;
 }
 
+const unsigned long foggerIsOn(void) {
+  return array.isOnFour() ? 1 : 0;
+}
+
 const unsigned long lightIsOn(void) {
   return array.isOnOne() ? 1 : 0;
 }
@@ -241,51 +253,35 @@ const unsigned long getTime(void) {
   return now();
 }
 
-/* Logging Functions */
-
-void logValue(char *file, unsigned long h) {
-    char message[100];
-    sprintf(message, "%02d:%02d,%02d-%02d-%04d,%d",
-      hour(),
-      minute(),
-      day(),
-      month(),
-      year(),
-      h);
-  loggerDevice.logMessage(file,message);
-  DEBUG(String(file) + " logged value " + String(h));
-}
-
-void logStartFlowering(void) {
-  logValue("FLOWERING.TXT",1);
-}
-
-void logHeight(unsigned long h) {
-  logValue("HEIGHT.TXT",h);
-  heightMeasurements[heightMeasures % MEASUREMENTS] = h;
-  heightMeasures++;
-}
-
 void logDistance(unsigned long h) {
-  logValue("DISTANCE.TXT",h);
-}
-
-void logHeightAlert(unsigned long h) {
-  logValue("HEIGHT_ALARM.TXT",h);
+  loggerDevice.logStampedValue("DISTANCE.TXT",h);
 }
 
 void logAirTemp(unsigned long h) {
-  logValue("AIRTEMP.TXT",h);
+  loggerDevice.logStampedValue("AIRTEMP.TXT",h);
+}
+
+void logHeight(unsigned long h) {
+  loggerDevice.logStampedValue("HEIGHT.TXT",h);
+  if(lightIsOn()) { // readings are more reliable with the light on
+    heightMeasurements[heightMeasures % MEASUREMENTS] = h;
+    heightMeasures++;
+  }
+}
+
+void logHeightAlert(unsigned long h) {
+  loggerDevice.logStampedValue("HEIGHT_ALARM.TXT",h);
+}
+
+void logStartFlowering(void) {
+  loggerDevice.logStampedValue("FLOWERING.TXT",'1');
+}
+
+void logHumidity(unsigned long h) {
+  loggerDevice.logStampedValue("HUMIDITY.TXT",h);
 }
 
 void logMoisture(unsigned long h) {
-  logValue("MOISTURE.TXT",h);
+  loggerDevice.logStampedValue("MOISTURE.TXT",h);
 }
 
-void logSoilTemp(unsigned long h) {
-  logValue("SOIL_TEMP.TXT",h);
-}
-
-void logWaterLevel(unsigned long h) {
-  logValue("WATER_LEVEL.TXT",h);
-}
