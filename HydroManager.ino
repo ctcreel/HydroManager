@@ -263,7 +263,9 @@ void logAirTemp(unsigned long h) {
 
 void logHeight(unsigned long h) {
   loggerDevice.logStampedValue("HEIGHT.TXT",h);
-  if(lightIsOn()) { // readings are more reliable with the light on
+  if(lightIsOn()) { 
+    // readings are more reliable with the light on
+    // The plant seems to "relax" when the light goes off
     heightMeasurements[heightMeasures % MEASUREMENTS] = h;
     heightMeasures++;
   }
