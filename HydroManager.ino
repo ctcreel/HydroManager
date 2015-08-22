@@ -266,6 +266,7 @@ void logHeight(unsigned long h) {
   if(lightIsOn()) { 
     // readings are more reliable with the light on
     // The plant seems to "relax" when the light goes off
+    loggerDevice.logStampedValue("FLOWERING_HEIGHT.TXT",h);
     heightMeasurements[heightMeasures % MEASUREMENTS] = h;
     heightMeasures++;
   }
