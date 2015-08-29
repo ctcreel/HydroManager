@@ -97,8 +97,8 @@ void setup () {
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
-  Alarm.timerRepeat(60, getHumidity);
-  Alarm.timerRepeat(60, getTemp);
+  Alarm.timerRepeat(10, getHumidity);
+  Alarm.timerRepeat(10, getTemp);
   Alarm.timerRepeat(60, checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
@@ -177,7 +177,7 @@ void setHumidity(const unsigned long h) {
   }
   
   if(!array.isOnOne()) {
-    if((getGrowMode()==0 && h >= 80) || (getGrowMode()==1 && h >= 60)) {
+    if((getGrowMode()==0 && h >= 75) || (getGrowMode()==1 && h >= 55)) {
       array.turnOnTwo(); // turn on fan
     } else {
       array.turnOffTwo(); // turn off fan
@@ -254,37 +254,37 @@ const unsigned long getTime(void) {
 }
 
 void logDistance(unsigned long h) {
-  loggerDevice.logStampedValue("DISTANCE.TXT",h);
+  loggerDevice.logValue("DISTANCE.TXT",h);
 }
 
 void logAirTemp(unsigned long h) {
-  loggerDevice.logStampedValue("AIRTEMP.TXT",h);
+  loggerDevice.logValue("AIRTEMP.TXT",h);
 }
 
 void logHeight(unsigned long h) {
-  loggerDevice.logStampedValue("HEIGHT.TXT",h);
+  loggerDevice.logValue("HEIGHT.TXT",h);
   if(lightIsOn()) { 
     // readings are more reliable with the light on
     // The plant seems to "relax" when the light goes off
-    loggerDevice.logStampedValue("FLOWERING_HEIGHT.TXT",h);
+    loggerDevice.logValue("FLOWERING_HEIGHT.TXT",h);
     heightMeasurements[heightMeasures % MEASUREMENTS] = h;
     heightMeasures++;
   }
 }
 
 void logHeightAlert(unsigned long h) {
-  loggerDevice.logStampedValue("HEIGHT_ALARM.TXT",h);
+  loggerDevice.logValue("HEIGHT_ALARM.TXT",h);
 }
 
 void logStartFlowering(void) {
-  loggerDevice.logStampedValue("FLOWERING.TXT",'1');
+  loggerDevice.logValue("FLOWERING.TXT",'1');
 }
 
 void logHumidity(unsigned long h) {
-  loggerDevice.logStampedValue("HUMIDITY.TXT",h);
+  loggerDevice.logValue("HUMIDITY.TXT",h);
 }
 
 void logMoisture(unsigned long h) {
-  loggerDevice.logStampedValue("MOISTURE.TXT",h);
+  loggerDevice.logValue("MOISTURE.TXT",h);
 }
 

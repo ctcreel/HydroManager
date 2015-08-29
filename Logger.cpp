@@ -1,8 +1,7 @@
 #include "Logger.h"
 #include "DEBUG.h"
+#include "Time.h"
 #include <SD.h>
-
-// boolean logger::SD_Present;
 
 logger::logger(byte p1, byte p2, byte p3, byte p4) {
   if (SD.begin(p1, p2, p3, p4)) {
@@ -18,11 +17,25 @@ const boolean logger::sdIsPresent(void) {
   return sdPresent;
 }
 
-const boolean logger::logMessage(const char *fileName, const char *s) {
+void logger::updateStamp(const boolean stamped) {
+  if(stamped) {
+    sprintf(stamp, "%02d:%02d,%02d-%02d-%04d,",
+      hour(),
+      minute(),
+      day(),
+      month(),
+      year()
+    );
+  } else stamp[0] = 0;
+}
+
+const boolean logger::logMessage(const char *fileName, const char *s, const boolean stamped) {
   boolean result = false;
   if(sdPresent) {
     File dataFile = SD.open(fileName, FILE_WRITE);
     if (dataFile) {
+      updateStamp(stamped);
+      dataFile.print(stamp);
       dataFile.println(s);
       dataFile.close();
       DEBUG("Data logged - " + String(s));
@@ -31,5 +44,25 @@ const boolean logger::logMessage(const char *fileName, const char *s) {
     dataFile.close();
   }
   return result;
+}
+
+boolean const logger::logValue(const char *fileName, const unsigned long value, const boolean stamped) {
+  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%ul",value);
+  logMessage(fileName, message, stamped);
+}
+
+boolean const logger::logValue(const char *fileName, const long value, const boolean stamped) {
+  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%l",value);
+  logMessage(fileName, message, stamped);  
+}
+
+boolean const logger::logValue(const char *fileName, const double value, const boolean stamped) {
+  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%fL",value);
+  logMessage(fileName, message, stamped);
+}
+
+boolean const logger::logValue(const char *fileName, const char value, const boolean stamped) {
+  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%c",value);
+  logMessage(fileName, message, stamped);
 }
 
