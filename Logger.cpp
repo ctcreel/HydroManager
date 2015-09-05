@@ -38,7 +38,7 @@ const boolean logger::logMessage(const char *fileName, const char *s, const bool
       dataFile.print(stamp);
       dataFile.println(s);
       dataFile.close();
-      DEBUG("Data logged - " + String(s));
+      DEBUG("Data logged - " + String(stamp) + String(s));
       result = true;
     }
     dataFile.close();
@@ -47,22 +47,22 @@ const boolean logger::logMessage(const char *fileName, const char *s, const bool
 }
 
 boolean const logger::logValue(const char *fileName, const unsigned long value, const boolean stamped) {
-  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%ul",value);
+  sprintf(message, "%lu",value);
   logMessage(fileName, message, stamped);
 }
 
 boolean const logger::logValue(const char *fileName, const long value, const boolean stamped) {
-  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%l",value);
+  sprintf(message, "%ld",value);
   logMessage(fileName, message, stamped);  
 }
 
 boolean const logger::logValue(const char *fileName, const double value, const boolean stamped) {
-  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%fL",value);
+  sprintf(message, "%fL",value);
   logMessage(fileName, message, stamped);
 }
 
 boolean const logger::logValue(const char *fileName, const char value, const boolean stamped) {
-  sprintf(message, "%02d:%02d,%02d-%02d-%04d,%c",value);
+  sprintf(message, "%c",value);
   logMessage(fileName, message, stamped);
 }
 
