@@ -38,7 +38,7 @@ const boolean logger::logMessage(const char *fileName, const char *s, const bool
       dataFile.print(stamp);
       dataFile.println(s);
       dataFile.close();
-      DEBUG("Data logged - " + String(stamp) + String(s));
+      DEBUG("Data logged - " + String(stamp) + String(s) + String(" in file - ") + String(fileName));
       result = true;
     }
     dataFile.close();
