@@ -95,7 +95,7 @@ void setup () {
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
-  Alarm.timerRepeat(10, getHumidity);
+  Alarm.timerRepeat(60, getHumidity);
   Alarm.timerRepeat(60, checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
