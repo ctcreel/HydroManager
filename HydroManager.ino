@@ -61,8 +61,6 @@ void setup () {
   Serial3.begin(BAUD_RATE);
   
   new eventOutgoing(&e, getMoisture,SET_MOISTURE,GET_MOISTURE);
-  new eventOutgoing(&e, getWaterLevel,SET_WATER_LEVEL,GET_WATER_LEVEL);
-  new eventOutgoing(&e, getSoilTemp,SET_SOIL_TEMP,GET_SOIL_TEMP);
   new eventOutgoing(&e, getTime,SET_TIME,GET_TIME);
   new eventOutgoing(&e, lightIsOn,SET_LIGHT_ON,GET_LIGHT_ON);
   new eventOutgoing(&e, fanIsOn,SET_FAN_ON,GET_FAN_ON);
@@ -98,7 +96,6 @@ void setup () {
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
   Alarm.timerRepeat(10, getHumidity);
-  Alarm.timerRepeat(10, getTemp);
   Alarm.timerRepeat(60, checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
