@@ -63,28 +63,32 @@ void relayArray::turnOnFour(void) {
 }
 
 void relayArray::turnOnOne(unsigned long timeOn) {
-    if(relayOne->turnOn()){
+    if(!isOnOne()){
+        turnOnOne();
         Alarm.timerOnce(timeOn, turnOffOne);
         DEBUG("relayOne turned on and schedule to turn off in " + String(timeOn) + " seconds");
     }
 }
 
 void relayArray::turnOnTwo(unsigned long timeOn) {
-    if(relayTwo->turnOn()){
+    if(!isOnTwo()){
+        turnOnTwo();
         Alarm.timerOnce(timeOn, turnOffTwo);
         DEBUG("relayTwo turned on and schedule to turn off in " + String(timeOn) + " seconds");
     }
 }
 
 void relayArray::turnOnThree(unsigned long timeOn) {
-    if(relayThree->turnOn()){
+    if(!isOnThree()){
+        turnOnThree();
         Alarm.timerOnce(timeOn, turnOffThree);
         DEBUG("relayThree turned on and schedule to turn off in " + String(timeOn) + " seconds");
     }
 }
 
 void relayArray::turnOnFour(unsigned long timeOn) {
-    if(relayFour->turnOn()){
+    if(!isOnFour()){
+        turnOnFour();
         Alarm.timerOnce(timeOn, turnOffFour);
         DEBUG("relayFour turned on and schedule to turn off in " + String(timeOn) + " seconds");
     }

@@ -13,8 +13,8 @@ class relay {
   public:
   
     explicit relay(byte pin);
-    boolean turnOn(void);
-    boolean turnOff(void);
+    void turnOn(void);
+    void turnOff(void);
     boolean const isOn(void);
 
 };

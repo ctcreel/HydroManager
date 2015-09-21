@@ -10,7 +10,6 @@
 #include "config.h"
 #include "Sensors.h"
 #include "DHT.h"
-#include "Logger.h"
 #include "relayArray.h"
 
 // Third party libraries
@@ -24,19 +23,18 @@
 #include <EEPROM.h>
 #include <EEPROMAnything.h>
 
-RTC_DS1307 RTC;
-unsigned int heightMeasurements[MEASUREMENTS];
-unsigned int heightMeasures;
-
 generatorDeviceID gID;
 manageROM c;
 relayArray array(LIGHT_PIN,FAN_PIN,PUMP_PIN,FOGGER_PIN);
-sensorAnalog waterLevel(WATER_LEVEL_PIN,WATER_LEVEL_POWER,WATER_LEVEL_SENSOR_POWER_UP,MAX_WATER_LEVEL,MIN_WATER_LEVEL);
 sensorAnalog moisture(MOISTURE_PIN, MOISTURE_POWER, MOISTURE_SENSOR_POWER_UP,MAX_MOISTURE,MIN_MOISTURE);
-sensorAnalog soilTemp(TEMP_PIN, TEMP_POWER, TEMP_SENSOR_POWER_UP,MAX_TEMP,MIN_TEMP);
-logger loggerDevice(SD_ONE, SD_TWO, SD_THREE, SD_FOUR);
 eventStream e(&Serial3,&gID);
 
+unsigned int heightMeasurements[100];
+unsigned int heightMeasures;
+
+unsigned long lastTempNotification;
+
+RTC_DS1307 RTC;
 time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 {
   return RTC.now().unixtime();
@@ -45,20 +43,20 @@ time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 void setup () {
   DEBUG_BEGIN(BAUD_RATE);
   DEBUG("Starting up!");
-  // c.reset();
+  
+  // c.reset(); // reset flash settings
   Wire.begin();
   Serial.begin(BAUD_RATE);
 
   /* Set up clock */ 
   RTC.begin();
   setSyncProvider(syncProvider);     //reference our syncProvider function instead of RTC_DS1307::get()
-//  for debugging purposes
-//  setTime(21,29,00,19,8,2015);
-//  RTC.adjust(now());
-//  DEBUG("Current time is - " + String(hour()) + ":" + String(minute()) + " on " + String(month()) + "-" + String(day()) + "-" + String(year()));
+  DEBUG("Current time is - " + String(hour()) + ":" + String(minute()) + " on " + String(month()) + "-" + String(day()) + "-" + String(year()));
 
   /* Set up events */
   Serial3.begin(BAUD_RATE);
+
+  /* Set up status checks */
   
   new eventOutgoing(&e, getMoisture,SET_MOISTURE,GET_MOISTURE);
   new eventOutgoing(&e, getTime,SET_TIME,GET_TIME);
@@ -81,25 +79,29 @@ void setup () {
   new eventIncoming(&e, c.setPumpOnTime, SET_PUMP_ON);
   
   /* Set up remote devices */
-  
-  new eventIncoming(&e, logDistance, SET_DISTANCE);
-  new eventIncoming(&e, logHeight, SET_HEIGHT);
-  new eventIncoming(&e, logHeightAlert, SET_DISTANCE_ALARM);
-  new eventIncoming(&e, logAirTemp, SET_AIR_TEMP);
   new eventIncoming(&e, setHumidity, SET_HUMIDITY);
-  
-  new eventOutgoing(&e, getGrowMode, SET_GROW_MODE, GET_GROW_MODE);
+  new eventIncoming(&e, setTemp, SET_AIR_TEMP);
+  new eventIncoming(&e, setHeight, SET_HEIGHT);
 
   DEBUG("Light time on - " + String(c.getLightOnTime()));
   DEBUG("Light start time - " + String(c.getLightStartTime()));
+  DEBUG("Grow mode is - " + String(getGrowMode()));
+
+  resetHeightMeasurements();
+  lastTempNotification = now();
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
   Alarm.timerRepeat(60, getHumidity);
+  Alarm.timerRepeat(60, getTemp);
   Alarm.timerRepeat(60, checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
   /* Let's get started */
+  getHeight();
+  getHumidity();
+  getTemp();
+  checkMoisture();
   dailySetup();
  }
 
@@ -120,26 +122,70 @@ void dailySetup(void) {
     // Turn the light on for the remainder of the day.
     unsigned long timeOn = endTime - current;
     array.turnOnOne(timeOn); // Turn on light
-    array.turnOnTwo(timeOn); // Turn on fan
   }
-  // Now check flowering status
   flowerCheck();
 }
 
-void resetFlowerCheck(void) {
+void setHumidity(const unsigned long h) {
+
+  if((getGrowMode()==0 && h < 70) || (getGrowMode()==1 && h < 50)) {
+    array.turnOnFour(); // turn on fogger
+    e.createEvent("1",SET_FOGGER_ON);
+  } else if(array.isOnFour()) {
+    array.turnOffFour(); // turn off fogger
+    e.createEvent("0",SET_FOGGER_ON);
+  }
+  
+  if(!array.isOnOne()) { // if the light is on
+    if((getGrowMode()==0 && h >= 75) || (getGrowMode()==1 && h >= 55)) {
+      // and the humidity is too high
+      array.turnOnTwo(); // turn on fan
+      e.createEvent("1",SET_FAN_ON);
+    } else if(array.isOnTwo()) {
+      array.turnOffTwo(); // turn off fan
+      e.createEvent("0",SET_FAN_ON);
+    }
+  }
+}
+
+void checkMoisture(void) {
+  unsigned long moisture = getMoisture();
+  DEBUG(String("Moisture is ")+String(moisture));
+  if(moisture < c.getDesiredMoisture()) {
+    array.turnOnThree(c.getPumpOnTime());
+  }
+  e.createEvent(moisture,SET_MOISTURE);
+}
+
+/* Flowering Controls */
+
+void resetHeightMeasurements(void) {
   heightMeasures = 0;
-  for(unsigned int i = 0; i < MEASUREMENTS; i++) heightMeasurements[i] = 0;
+  const unsigned int measurements = sizeof(heightMeasurements) / sizeof(unsigned int);
+  for(unsigned int i = 0; i < measurements; i++) heightMeasurements[i] = 0;
+}
+
+void setHeight(unsigned long h) {
+  if(h < 70) { // this number needs to be believeable
+    const unsigned int measurements = sizeof(heightMeasurements) / sizeof(unsigned int);
+    heightMeasurements[heightMeasures % measurements] = h;
+    heightMeasures++;
+    DEBUG(String("Height is ")+String(h)+String(" and number of measurements is ")+String(heightMeasures));
+  }
 }
 
 float heightAverage(void) {
   float averageHeight = 0.0;
-  float dailyMeasurements = (float) heightMeasures < MEASUREMENTS ? heightMeasures : MEASUREMENTS;
+  const unsigned int measurements = sizeof(heightMeasurements) / sizeof(unsigned int);
+  float dailyMeasurements = (float) heightMeasures < measurements ? heightMeasures : measurements;
   for(unsigned int i = 0; i < dailyMeasurements; i++) averageHeight += heightMeasurements[i];
+  DEBUG(String("Average height is ")+String(averageHeight));
   return averageHeight / dailyMeasurements;
 }
+
 void flowerCheck(void) {
     float averageHeight = heightAverage(); 
-    if(heightMeasures >= MIN_MEASUREMENTS) { // If we don't have enough so data don't do anything
+    if(heightMeasures >= 5) { // If we don't have enough so data don't do anything
       if(averageHeight >= FLOWER_AT_HEIGHT && c.getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
         c.setLightOnTime(LIGHT_ON_TIME_FLOWER);
         c.setLightStartTime(LIGHT_START_TIME_FLOWER);
@@ -148,7 +194,7 @@ void flowerCheck(void) {
         c.setLightOnTime(LIGHT_ON_TIME_VEG);
         c.setLightStartTime(LIGHT_START_TIME_VEG);
       }
-      resetFlowerCheck();
+      resetHeightMeasurements();
     }
 }
 
@@ -158,39 +204,8 @@ void startFlowering(void) {
     start++;
     Alarm.timerOnce(300, startFlowering);
     e.createEvent("",START_FLOWERING);
-  } else {
-    logStartFlowering();
   }
 }
-
-void setHumidity(const unsigned long h) {
-  
-  logHumidity(h);
-
-  if((getGrowMode()==0 && h < 70) || (getGrowMode()==1 && h < 50)) {
-    array.turnOnFour(); // turn on fogger
-  } else {
-    array.turnOffFour(); // turn off fogger
-  }
-  
-  if(!array.isOnOne()) {
-    if((getGrowMode()==0 && h >= 75) || (getGrowMode()==1 && h >= 55)) {
-      array.turnOnTwo(); // turn on fan
-    } else {
-      array.turnOffTwo(); // turn off fan
-    }
-  }
-}
-
-void checkMoisture(void) {
-  unsigned long moisture = getMoisture();
-  logMoisture(moisture);
-  if(moisture < c.getDesiredMoisture()) {
-    array.turnOnThree(c.getPumpOnTime()); // turn on pump
-  }
-}
-
-/* Status Functions */
 
 const unsigned long getGrowMode(void) {
   if(c.getLightOnTime() == LIGHT_ON_TIME_FLOWER) {
@@ -202,20 +217,42 @@ const unsigned long getGrowMode(void) {
   }
 }
 
+/* Fan Functions */
+
+void setTemp(const unsigned long h) {
+  DEBUG(String("Temp is ")+String(h));
+  if(h >= DESIRED_AIR_TEMP) {
+    DEBUG("Temp is too high. Turning on fan.");
+    array.turnOnTwo(); // turn on fan
+    e.createEvent("1",SET_FAN_ON); // Relay this out
+  } else if(array.isOnTwo()) {
+    DEBUG("Temp is ok now. Turning off fan.");
+    array.turnOffTwo(); // turn off fan
+    e.createEvent("0",SET_FAN_ON); // Relay this out
+  }
+  lastTempNotification = now();
+}
+
+void getTemp(void) {
+  DEBUG(String("Time since last notification ")+String(now() - lastTempNotification));
+  if(now() - lastTempNotification > 300 && !array.isOnTwo()) {
+    // We haven't heard from the temp sensor in 5 minutes
+    // and the fan is off so turn on the fan
+    array.turnOnTwo();
+    e.createEvent("1",SET_FAN_ON); // Relay this out
+    DEBUG("We haven't heard from the temp sensor in over 5 minutes!");
+  }
+  e.createEvent("",GET_AIR_TEMP);
+}
+
+/* Status Functions */
+
 void getHeight(void) {
   e.createEvent("",GET_DISTANCE);
 }
 
 void getHumidity(void) {
   e.createEvent("",GET_HUMIDITY);
-}
-
-void getTemp(void) {
-  e.createEvent("",GET_AIR_TEMP);
-}
-
-const unsigned long sdIsPresent(void) {
-  return loggerDevice.sdIsPresent() ? 1 : 0;
 }
 
 const unsigned long fanIsOn(void) {
@@ -234,54 +271,10 @@ const unsigned long lightIsOn(void) {
   return array.isOnOne() ? 1 : 0;
 }
 
-const unsigned long getSoilTemp(void) {
-  return soilTemp.getReading();
-}
-
 const unsigned long getMoisture(void) {
   return moisture.getReading();
-}
-
-const unsigned long getWaterLevel(void) {
-  return waterLevel.getReading();
 }
 
 const unsigned long getTime(void) {
   return now();
 }
-
-void logDistance(unsigned long h) {
-  loggerDevice.logValue("DISTANCE.TXT",h);
-}
-
-void logAirTemp(unsigned long h) {
-  loggerDevice.logValue("AIRTEMP.TXT",h);
-}
-
-void logHeight(unsigned long h) {
-  loggerDevice.logValue("HEIGHT.TXT",h);
-  if(lightIsOn()) { 
-    // readings are more reliable with the light on
-    // The plant seems to "relax" when the light goes off
-    loggerDevice.logValue("FLOWERING_HEIGHT.TXT",h);
-    heightMeasurements[heightMeasures % MEASUREMENTS] = h;
-    heightMeasures++;
-  }
-}
-
-void logHeightAlert(unsigned long h) {
-  loggerDevice.logValue("HEIGHT_ALARM.TXT",h);
-}
-
-void logStartFlowering(void) {
-  loggerDevice.logValue("FLOWERING.TXT",'1');
-}
-
-void logHumidity(unsigned long h) {
-  loggerDevice.logValue("HUMIDITY.TXT",h);
-}
-
-void logMoisture(unsigned long h) {
-  loggerDevice.logValue("MOISTURE.TXT",h);
-}
-

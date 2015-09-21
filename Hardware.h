@@ -7,10 +7,6 @@
 #define XBEE_TX 53
 #define XBEE_RX 52
 /**************************/
-#define SD_ONE 10
-#define SD_TWO 11
-#define SD_THREE 12
-#define SD_FOUR 13
 
 // 4or10 ->53, 11->51, 12 ->50, and 13 ->52.
 /**************************/
