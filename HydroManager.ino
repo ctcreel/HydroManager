@@ -31,8 +31,9 @@ eventStream e(&Serial3,&gID);
 
 unsigned int heightMeasurements[100];
 unsigned int heightMeasures;
-
 unsigned long lastTempNotification;
+boolean humidityTooHigh;
+boolean tempTooHigh;
 
 RTC_DS1307 RTC;
 time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
@@ -89,11 +90,13 @@ void setup () {
 
   resetHeightMeasurements();
   lastTempNotification = now();
+  humidityTooHigh = false;
+  tempTooHigh = false;
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
-  Alarm.timerRepeat(60, getHumidity);
-  Alarm.timerRepeat(60, getTemp);
+  Alarm.timerRepeat(15, getHumidity);
+  Alarm.timerRepeat(15, getTemp);
   Alarm.timerRepeat(60, checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
@@ -136,15 +139,14 @@ void setHumidity(const unsigned long h) {
     e.createEvent("0",SET_FOGGER_ON);
   }
   
-  if(!array.isOnOne()) { // if the light is on
-    if((getGrowMode()==0 && h >= 75) || (getGrowMode()==1 && h >= 55)) {
-      // and the humidity is too high
-      array.turnOnTwo(); // turn on fan
-      e.createEvent("1",SET_FAN_ON);
-    } else if(array.isOnTwo()) {
-      array.turnOffTwo(); // turn off fan
-      e.createEvent("0",SET_FAN_ON);
-    }
+  if((getGrowMode()==0 && h >= 75) || (getGrowMode()==1 && h >= 55)) {
+    array.turnOnTwo(); // turn on fan
+    e.createEvent("1",SET_FAN_ON);
+    humidityTooHigh = true;
+  } else if(array.isOnTwo() && tempTooHigh == false) {
+    array.turnOffTwo(); // turn off fan
+    e.createEvent("0",SET_FAN_ON);
+    humidityTooHigh = false;
   }
 }
 
@@ -217,7 +219,7 @@ const unsigned long getGrowMode(void) {
   }
 }
 
-/* Fan Functions */
+/* Temp Functions */
 
 void setTemp(const unsigned long h) {
   DEBUG(String("Temp is ")+String(h));
@@ -225,10 +227,12 @@ void setTemp(const unsigned long h) {
     DEBUG("Temp is too high. Turning on fan.");
     array.turnOnTwo(); // turn on fan
     e.createEvent("1",SET_FAN_ON); // Relay this out
-  } else if(array.isOnTwo()) {
+    tempTooHigh = true;
+  } else if(array.isOnTwo() && humidityTooHigh == false) {
     DEBUG("Temp is ok now. Turning off fan.");
     array.turnOffTwo(); // turn off fan
     e.createEvent("0",SET_FAN_ON); // Relay this out
+    tempTooHigh = false;
   }
   lastTempNotification = now();
 }
