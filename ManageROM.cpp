@@ -5,6 +5,9 @@
 
 manageROM::layout manageROM::configuration;
 
+const unsigned long manageROM::getDesiredAirTemp(void) {
+  return configuration.desiredAirTemp;
+}
 
 const unsigned long manageROM::getDesiredHumidity(void) {
   return configuration.desiredHumidity;
@@ -48,6 +51,11 @@ const unsigned long manageROM::getTempInterval(void) {
 
 const unsigned long manageROM::getHumidityInterval(void) {
   return configuration.humidityInterval;
+}
+
+void manageROM::setDesiredAirTemp(unsigned long v) {
+  configuration.desiredAirTemp = v;
+  writeConfiguration();
 }
 
 void manageROM::setDesiredHumidity(unsigned long v) {
@@ -104,6 +112,7 @@ void manageROM::readConfiguration(void) {
 }
 
 manageROM::manageROM(
+    unsigned long da,
     unsigned long dm,
     unsigned long dh,
     unsigned long dhs,
@@ -117,6 +126,7 @@ manageROM::manageROM(
     unsigned long hmi) {
   DEBUG("Initializing device");
   configuration.initialized = INITIALIZATION_CODE;
+  configuration.desiredAirTemp = da;
   configuration.desiredMoisture = dm;
   configuration.desiredHumidity = dh;
   configuration.pumpOnTime = pot;
@@ -139,6 +149,7 @@ manageROM::manageROM(void) {
 void manageROM::reset(void) {
     DEBUG("Resetting ROM");
     configuration.initialized = INITIALIZATION_CODE;
+    configuration.desiredAirTemp = DESIRED_AIR_TEMP;
     configuration.desiredHumidity = DESIRED_MOISTURE;
     configuration.desiredHumiditySpread = DESIRED_HUMIDITY_SPREAD;
     /*

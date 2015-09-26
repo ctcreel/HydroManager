@@ -91,7 +91,7 @@ void setup () {
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
-  Alarm.timerRepeat(30, getHumidity);
+  Alarm.timerRepeat(c.getHumidityInterval(), getHumidity);
   Alarm.timerRepeat(c.getTempInterval(), getTemp);
   Alarm.timerRepeat(c.getMoistureInterval(), checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
@@ -131,7 +131,7 @@ void dailySetup(void) {
 
 void setTemp(const unsigned long h) {
   DEBUG(String("Temp is ")+String(h));
-  if(h >= DESIRED_AIR_TEMP) {
+  if(h >= c.getDesiredAirTemp()) {
     DEBUG("Temp is too high. Turning on fan.");
     tempTooHigh = true;
     array.turnOnTwo(); // turn on fan
@@ -151,7 +151,7 @@ void setTemp(const unsigned long h) {
 
 void getTemp(void) {
   DEBUG(String("Time since last notification ")+String(now() - lastTempNotification));
-  if(now() - lastTempNotification > 120 && !array.isOnTwo()) {
+  if(now() - lastTempNotification > TURN_FAN_ON_AFTER && !array.isOnTwo()) {
     // We haven't heard from the temp sensor in 60 seconds
     // and the fan is off so turn on the fan
     array.turnOnTwo();
@@ -172,7 +172,7 @@ void setHumidity(const unsigned long h) {
     // The fan isn't on so just adjust the humidity a little
     if(h < c.getDesiredHumidity()) {
       humidityTooHigh = false;
-      array.turnOnFour(10); // turn on fogger for 10 seconds
+      array.turnOnFour(FOGGER_ON_TIME); // turn on fogger for 10 seconds
       e.createEvent("1",SET_FOGGER_ON);
     } else {
       array.turnOffFour(); // turn off fogger
@@ -190,7 +190,7 @@ void setHumidity(const unsigned long h) {
   
   if(h >= c.getMaxHumidity()) {
     humidityTooHigh = true;
-    array.turnOnTwo(10); // turn on fan for 15 seconds
+    array.turnOnTwo(FAN_ON_FOR_HUMIDITY);
     array.turnOffFour(); // turn off fogger if it is on
     e.createEvent("1",SET_FAN_ON);
   } else {

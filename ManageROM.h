@@ -5,6 +5,7 @@ class manageROM {
   private:
     struct layout {
       unsigned long initialized;
+      unsigned long desiredAirTemp;
       unsigned long desiredMoisture;
       unsigned long desiredHumidity;
       unsigned long desiredHumiditySpread;
@@ -27,6 +28,7 @@ class manageROM {
     
   public:
     manageROM(
+      unsigned long desiredAirTemp,
       unsigned long desiredMoisture,
       unsigned long desiredHumidity,
       unsigned long desiredHumiditySpread,
@@ -42,6 +44,7 @@ class manageROM {
     manageROM(void);
     
     static void reset(void);    
+    static const unsigned long getDesiredAirTemp(void);
     static const unsigned long getDesiredHumidity(void);
     static const unsigned long getMaxHumidity(void);
     static const unsigned long getDesiredHumiditySpread(void);
@@ -54,6 +57,7 @@ class manageROM {
     static const unsigned long getHeightInterval(void);
     static const unsigned long getTempInterval(void);
     static const unsigned long getHumidityInterval(void);
+    static void setDesiredAirTemp(unsigned long);
     static void setDesiredHumidity(unsigned long);
     static void setDesiredHumiditySpread(unsigned long);
     static void setPumpOnTime(unsigned long);
