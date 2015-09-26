@@ -48,14 +48,12 @@ void setup () {
   // c.reset(); // reset flash settings
   Wire.begin();
   Serial.begin(BAUD_RATE);
+  Serial3.begin(BAUD_RATE); // XBee
 
   /* Set up clock */ 
   RTC.begin();
   setSyncProvider(syncProvider);     //reference our syncProvider function instead of RTC_DS1307::get()
   DEBUG("Current time is - " + String(hour()) + ":" + String(minute()) + " on " + String(month()) + "-" + String(day()) + "-" + String(year()));
-
-  /* Set up events */
-  Serial3.begin(BAUD_RATE);
 
   /* Set up status checks */
   
@@ -74,8 +72,6 @@ void setup () {
   new eventIncoming(&e, c.setLightStartTime, SET_START_TIME);
   new eventOutgoing(&e, c.getLightOnTime, SET_TIME_ON, GET_TIME_ON);
   new eventIncoming(&e, c.setLightOnTime, SET_TIME_ON);
-  new eventOutgoing(&e, c.getCoolDownTime, SET_COOL_DOWN, GET_COOL_DOWN);
-  new eventIncoming(&e, c.setCoolDownTime, SET_COOL_DOWN);
   new eventOutgoing(&e, c.getPumpOnTime, SET_PUMP_ON, GET_PUMP_ON);
   new eventIncoming(&e, c.setPumpOnTime, SET_PUMP_ON);
   
@@ -95,9 +91,9 @@ void setup () {
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
-  Alarm.timerRepeat(15, getHumidity);
-  Alarm.timerRepeat(15, getTemp);
-  Alarm.timerRepeat(60, checkMoisture);
+  Alarm.timerRepeat(30, getHumidity);
+  Alarm.timerRepeat(c.getTempInterval(), getTemp);
+  Alarm.timerRepeat(c.getMoistureInterval(), checkMoisture);
   Alarm.alarmRepeat(24,00,00,dailySetup);
 
   /* Let's get started */
@@ -129,26 +125,84 @@ void dailySetup(void) {
   flowerCheck();
 }
 
-void setHumidity(const unsigned long h) {
+/* Temp & Humidity */
 
-  if((getGrowMode()==0 && h < 70) || (getGrowMode()==1 && h < 50)) {
-    array.turnOnFour(); // turn on fogger
+/* Fan Control */
+
+void setTemp(const unsigned long h) {
+  DEBUG(String("Temp is ")+String(h));
+  if(h >= DESIRED_AIR_TEMP) {
+    DEBUG("Temp is too high. Turning on fan.");
+    tempTooHigh = true;
+    array.turnOnTwo(); // turn on fan
+    getHumidity();
+    e.createEvent("1",SET_FAN_ON); // Relay this out
+  } else {
+    tempTooHigh = false;
+    if(array.isOnTwo() && humidityTooHigh == false) {
+      array.turnOffTwo(); // turn off fan
+      getHumidity();
+      e.createEvent("0",SET_FAN_ON); // Relay this out
+      DEBUG("Temp is ok now. Turning off fan.");
+    }
+  }
+  lastTempNotification = now();
+}
+
+void getTemp(void) {
+  DEBUG(String("Time since last notification ")+String(now() - lastTempNotification));
+  if(now() - lastTempNotification > 120 && !array.isOnTwo()) {
+    // We haven't heard from the temp sensor in 60 seconds
+    // and the fan is off so turn on the fan
+    array.turnOnTwo();
+    e.createEvent("1",SET_FAN_ON); // Relay this out
+    DEBUG("We haven't heard from the temp sensor in over 5 minutes!");
+  }
+  e.createEvent("",GET_AIR_TEMP);
+}
+
+/* Fogger Control */
+
+void setHumidity(const unsigned long h) {
+  
+  DEBUG(String("Humidity is ")+String(h));
+  DEBUG(String("Desired humidity is ")+String(c.getDesiredHumidity()));
+
+  if(tempTooHigh == false) {
+    // The fan isn't on so just adjust the humidity a little
+    if(h < c.getDesiredHumidity()) {
+      humidityTooHigh = false;
+      array.turnOnFour(10); // turn on fogger for 10 seconds
+      e.createEvent("1",SET_FOGGER_ON);
+    } else {
+      array.turnOffFour(); // turn off fogger
+      e.createEvent("0",SET_FOGGER_ON);
+    }
+  } else if(h < c.getDesiredHumidity()) {
+    // The fan is on so just turn the fogger on
+    humidityTooHigh==false;
+    array.turnOnFour();
     e.createEvent("1",SET_FOGGER_ON);
-  } else if(array.isOnFour()) {
+  } else {
     array.turnOffFour(); // turn off fogger
     e.createEvent("0",SET_FOGGER_ON);
   }
   
-  if((getGrowMode()==0 && h >= 75) || (getGrowMode()==1 && h >= 55)) {
-    array.turnOnTwo(); // turn on fan
-    e.createEvent("1",SET_FAN_ON);
+  if(h >= c.getMaxHumidity()) {
     humidityTooHigh = true;
-  } else if(array.isOnTwo() && tempTooHigh == false) {
-    array.turnOffTwo(); // turn off fan
-    e.createEvent("0",SET_FAN_ON);
+    array.turnOnTwo(10); // turn on fan for 15 seconds
+    array.turnOffFour(); // turn off fogger if it is on
+    e.createEvent("1",SET_FAN_ON);
+  } else {
     humidityTooHigh = false;
+    if(array.isOnTwo() && tempTooHigh == false) {
+      array.turnOffTwo(); // turn off fan
+      e.createEvent("0",SET_FAN_ON);
+    }
   }
 }
+
+/* Moisture Control */
 
 void checkMoisture(void) {
   unsigned long moisture = getMoisture();
@@ -185,16 +239,26 @@ float heightAverage(void) {
   return averageHeight / dailyMeasurements;
 }
 
+void setGrowMode(const unsigned int b) {
+  if(b == 1) {
+    c.setLightOnTime(LIGHT_ON_TIME_FLOWER);
+    c.setLightStartTime(LIGHT_START_TIME_FLOWER);
+    c.setDesiredHumidity(DESIRED_HUMIDITY_FLOWER);
+    startFlowering();
+  } else {
+    c.setLightOnTime(LIGHT_ON_TIME_VEG);
+    c.setLightStartTime(LIGHT_START_TIME_VEG);
+    c.setDesiredHumidity(DESIRED_HUMIDITY_VEG);
+  }
+}
+
 void flowerCheck(void) {
     float averageHeight = heightAverage(); 
     if(heightMeasures >= 5) { // If we don't have enough so data don't do anything
       if(averageHeight >= FLOWER_AT_HEIGHT && c.getLightOnTime() != LIGHT_ON_TIME_FLOWER) {
-        c.setLightOnTime(LIGHT_ON_TIME_FLOWER);
-        c.setLightStartTime(LIGHT_START_TIME_FLOWER);
-        startFlowering();
+        setGrowMode(1);
       } else if(averageHeight < FLOWER_AT_HEIGHT && c.getLightOnTime() != LIGHT_ON_TIME_VEG) {
-        c.setLightOnTime(LIGHT_ON_TIME_VEG);
-        c.setLightStartTime(LIGHT_START_TIME_VEG);
+        setGrowMode(0);
       }
       resetHeightMeasurements();
     }
@@ -217,36 +281,6 @@ const unsigned long getGrowMode(void) {
   } else {
     return 3;
   }
-}
-
-/* Temp Functions */
-
-void setTemp(const unsigned long h) {
-  DEBUG(String("Temp is ")+String(h));
-  if(h >= DESIRED_AIR_TEMP) {
-    DEBUG("Temp is too high. Turning on fan.");
-    array.turnOnTwo(); // turn on fan
-    e.createEvent("1",SET_FAN_ON); // Relay this out
-    tempTooHigh = true;
-  } else if(array.isOnTwo() && humidityTooHigh == false) {
-    DEBUG("Temp is ok now. Turning off fan.");
-    array.turnOffTwo(); // turn off fan
-    e.createEvent("0",SET_FAN_ON); // Relay this out
-    tempTooHigh = false;
-  }
-  lastTempNotification = now();
-}
-
-void getTemp(void) {
-  DEBUG(String("Time since last notification ")+String(now() - lastTempNotification));
-  if(now() - lastTempNotification > 300 && !array.isOnTwo()) {
-    // We haven't heard from the temp sensor in 5 minutes
-    // and the fan is off so turn on the fan
-    array.turnOnTwo();
-    e.createEvent("1",SET_FAN_ON); // Relay this out
-    DEBUG("We haven't heard from the temp sensor in over 5 minutes!");
-  }
-  e.createEvent("",GET_AIR_TEMP);
 }
 
 /* Status Functions */

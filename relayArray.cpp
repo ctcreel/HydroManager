@@ -63,35 +63,27 @@ void relayArray::turnOnFour(void) {
 }
 
 void relayArray::turnOnOne(unsigned long timeOn) {
-    if(!isOnOne()){
-        turnOnOne();
-        Alarm.timerOnce(timeOn, turnOffOne);
-        DEBUG("relayOne turned on and schedule to turn off in " + String(timeOn) + " seconds");
-    }
+  turnOnOne();
+  Alarm.timerOnce(timeOn, turnOffOne);
+  DEBUG("relayOne turned on and schedule to turn off in " + String(timeOn) + " seconds");
 }
 
 void relayArray::turnOnTwo(unsigned long timeOn) {
-    if(!isOnTwo()){
-        turnOnTwo();
-        Alarm.timerOnce(timeOn, turnOffTwo);
-        DEBUG("relayTwo turned on and schedule to turn off in " + String(timeOn) + " seconds");
-    }
+  turnOnTwo();
+  Alarm.timerOnce(timeOn, turnOffTwo);
+  DEBUG("relayTwo turned on and schedule to turn off in " + String(timeOn) + " seconds");
 }
 
 void relayArray::turnOnThree(unsigned long timeOn) {
-    if(!isOnThree()){
-        turnOnThree();
-        Alarm.timerOnce(timeOn, turnOffThree);
-        DEBUG("relayThree turned on and schedule to turn off in " + String(timeOn) + " seconds");
-    }
+  turnOnThree();
+  Alarm.timerOnce(timeOn, turnOffThree);
+  DEBUG("relayThree turned on and schedule to turn off in " + String(timeOn) + " seconds");
 }
 
 void relayArray::turnOnFour(unsigned long timeOn) {
-    if(!isOnFour()){
-        turnOnFour();
-        Alarm.timerOnce(timeOn, turnOffFour);
-        DEBUG("relayFour turned on and schedule to turn off in " + String(timeOn) + " seconds");
-    }
+  turnOnFour();
+  Alarm.timerOnce(timeOn, turnOffFour);
+  DEBUG("relayFour turned on and schedule to turn off in " + String(timeOn) + " seconds");
 }
 
 const boolean relayArray::isOnOne(void) {
