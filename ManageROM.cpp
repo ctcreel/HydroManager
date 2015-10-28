@@ -150,7 +150,7 @@ void manageROM::reset(void) {
     DEBUG("Resetting ROM");
     configuration.initialized = INITIALIZATION_CODE;
     configuration.desiredAirTemp = DESIRED_AIR_TEMP;
-    configuration.desiredHumidity = DESIRED_MOISTURE;
+    configuration.desiredMoisture = DESIRED_MOISTURE;
     configuration.desiredHumiditySpread = DESIRED_HUMIDITY_SPREAD;
     /*
     configuration.desiredHumidity = DESIRED_HUMIDITY_FLOWERING;
