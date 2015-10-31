@@ -45,7 +45,7 @@ void setup () {
   DEBUG_BEGIN(BAUD_RATE);
   DEBUG("Starting up!");
   
-  //c.reset(); // reset flash settings
+  // c.reset(); // reset flash settings
   Wire.begin();
   Serial.begin(BAUD_RATE);
   Serial3.begin(BAUD_RATE); // XBee
