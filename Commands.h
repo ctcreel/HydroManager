@@ -41,6 +41,4 @@
 #define TURN_PUMP_ON 37
 #define TURN_FOGGER_ON 38
 
-#define BAUD_RATE 19200
-
 #endif
