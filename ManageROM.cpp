@@ -153,14 +153,14 @@ void manageROM::reset(void) {
     configuration.desiredMoisture = DESIRED_MOISTURE;
     configuration.desiredHumiditySpread = DESIRED_HUMIDITY_SPREAD;
     /*
-    configuration.desiredHumidity = DESIRED_HUMIDITY_FLOWERING;
+    configuration.desiredHumidity = DESIRED_HUMIDITY_FLOWER;
     configuration.lightOnTime = LIGHT_ON_TIME_FLOWER;
     configuration.lightStartTime = LIGHT_START_TIME_FLOWER;
     */
     configuration.desiredHumidity = DESIRED_HUMIDITY_VEG;
     configuration.lightOnTime = LIGHT_ON_TIME_VEG;
     configuration.lightStartTime = LIGHT_START_TIME_VEG;
-
+    
     configuration.pumpOnTime = PUMP_ON_TIME;
     configuration.moistureInterval = CHECK_MOISTURE_INTERVAL;
     configuration.heightInterval = CHECK_HEIGHT_INTERVAL;

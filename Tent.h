@@ -1,0 +1,8 @@
+/* Tent settings */
+#define TENT_HEIGHT  78.0
+#define POT_HEIGHT  15.0
+#define IDEAL_LIGHT_DISTANCE 18.0
+#define SENSOR_TO_TOP_HEIGHT 2.0
+#define SENSOR_TO_PLANT_HEIGHT 3.0
+#define LIGHT_ASSEMBLY 7.0
+#define LIGHT_HEIGHT 3.0

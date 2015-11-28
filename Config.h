@@ -1,6 +1,12 @@
 #ifndef Config_h
 #define Config_h
 
+/****************/
+/* Radio Speeds */
+/****************/
+
+#define BAUD_RATE 19200
+
 /********************/
 /* Default Settings */
 /********************/
@@ -26,6 +32,9 @@
 
 /* Emergency Settings */
 #define TURN_FAN_ON_AFTER 120
+#define GIVE_UP_ON_FOGGER_AFTER 600
+#define GIVE_UP_ON_LIGHT_AFTER 600
+#define GIVE_UP_ON_MOISTURE_AFTER 600
 
 /* Environment settings */
 #define TENT_HEIGHT  78.0

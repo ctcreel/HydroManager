@@ -41,4 +41,7 @@
 #define TURN_PUMP_ON 37
 #define TURN_FOGGER_ON 38
 
+#define HUMIDITY_EMERGENCY 39
+#define TEMP_EMERGENCY 40
+
 #endif

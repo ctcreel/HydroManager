@@ -31,7 +31,9 @@ eventStream e(&Serial3,&gID);
 
 unsigned int heightMeasurements[10];
 unsigned int heightMeasures;
-unsigned long lastTempNotification;
+unsigned long lastTempAttempt;
+unsigned long lastHumidityAttempt;
+unsigned long lastMoistureAttempt;
 boolean humidityTooHigh;
 boolean tempTooHigh;
 
@@ -45,7 +47,7 @@ void setup () {
   DEBUG_BEGIN(BAUD_RATE);
   DEBUG("Starting up!");
   
-  // c.reset(); // reset flash settings
+  c.reset(); // reset flash settings
   Wire.begin();
   Serial.begin(BAUD_RATE);
   Serial3.begin(BAUD_RATE); // XBee
@@ -66,9 +68,8 @@ void setup () {
   DEBUG("Flower at height is - "+ String(FLOWER_AT_HEIGHT));
 
   resetHeightMeasurements();
-  lastTempNotification = now();
-  humidityTooHigh = false;
-  tempTooHigh = false;
+  lastTempAttempt = lastHumidityAttempt = lastMoistureAttempt = now();
+  humidityTooHigh = tempTooHigh = false;
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
@@ -108,40 +109,34 @@ void scheduleLight(void) {
 
 void setTemp(const unsigned long h) {
   DEBUG(String("Temp is ")+String(h));
-  if(h >= c.getDesiredAirTemp()) {
+  if(h >= c.getDesiredAirTemp() && now() - lastTempAttempt < GIVE_UP_ON_LIGHT_AFTER) {
     DEBUG("Temp is too high. Turning on fan.");
     tempTooHigh = true;
     array.turnOnTwo(); // turn on fan
     getHumidity(); // start checking humidity
     e.createEvent("1",SET_FAN_ON); // Relay this out
   } else {
-    tempTooHigh = false;
-    if(humidityTooHigh == false) {
-      array.turnOffTwo(); // turn off fan
-      getHumidity();
-      e.createEvent("0",SET_FAN_ON); // Relay this out
-      DEBUG("Temp is ok now. Turning off fan.");
+    if(h < c.getDesiredAirTemp()) {
+      tempTooHigh = false;
+      lastTempAttempt = now();
+      if(humidityTooHigh == false) {
+        array.turnOffTwo(); // turn off fan
+        getHumidity();
+        e.createEvent("0",SET_FAN_ON); // Relay this out
+        DEBUG("Temp is ok now. Turning off fan.");
+      }
+    } else {
+      // We can't seem to control the temp so turn off the light
+      array.turnOffOne();
+      e.createEvent("1",TEMP_EMERGENCY);
     }
   }
-  lastTempNotification = now();
-}
-
-void getTemp(void) {
-  DEBUG(String("Time since last notification ")+String(now() - lastTempNotification));
-  if(now() - lastTempNotification > TURN_FAN_ON_AFTER && !array.isOnTwo()) {
-    // We haven't heard from the temp sensor in 60 seconds
-    // and the fan is off so turn on the fan
-    array.turnOnTwo();
-    e.createEvent("1",SET_FAN_ON); // Relay this out
-    DEBUG("We haven't heard from the temp sensor in over 60 seconds!");
-  }
-  e.createEvent("",GET_AIR_TEMP);
 }
 
 /* Fogger Control */
 
 void humidityLowCheck(const unsigned long h) {
-  if(h < c.getDesiredHumidity()) {
+  if(h < c.getDesiredHumidity() && now() - lastHumidityAttempt < GIVE_UP_ON_FOGGER_AFTER) {
     humidityTooHigh = false;
     e.createEvent("1",SET_FOGGER_ON);
     if(tempTooHigh == false) {
@@ -154,6 +149,12 @@ void humidityLowCheck(const unsigned long h) {
   } else {
     array.turnOffFour(); // turn off fogger
     e.createEvent("0",SET_FOGGER_ON);
+    if(h >= c.getDesiredHumidity()) {
+      // were able to control the humidity
+      lastHumidityAttempt = now();
+    } else {
+      e.createEvent("1",HUMIDITY_EMERGENCY);
+    }
   }
 }
 
@@ -162,13 +163,8 @@ void humidityHighCheck(const unsigned long h) {
     humidityTooHigh = true;
     array.turnOffFour(); // turn off fogger if it is on
     e.createEvent("1",SET_FAN_ON);
-    if(array.isOnOne()) {
-      // if the light is on then just turn the fan on for a moment
-      array.turnOnTwo(FAN_ON_FOR_HUMIDITY);
-    } else {
-      // otherwise just turn it on full blast
-      array.turnOnTwo();
-    }
+    array.turnOnTwo();
+    Alarm.timerOnce(10, getHumidity);
   } else {
     humidityTooHigh = false;
     if(array.isOnTwo() && tempTooHigh == false) {
@@ -191,8 +187,12 @@ void checkMoisture(void) {
   unsigned long m = moisture.getReading();
   DEBUG(String("Moisture is ")+String(m));
   DEBUG(String("Desired moisture is ")+c.getDesiredMoisture());
-  if(m < c.getDesiredMoisture()) {
+  if(m < c.getDesiredMoisture() && now() - lastMoistureAttempt < GIVE_UP_ON_MOISTURE_AFTER) {
     array.turnOnThree(c.getPumpOnTime());
+  } else {
+    if(m >= c.getDesiredMoisture()) {
+      lastMoistureAttempt = now();
+    }
   }
   e.createEvent(m,SET_MOISTURE);
 }
@@ -255,7 +255,7 @@ void startFlowering(void) {
   if(start < 12) {
     start++;
     Alarm.timerOnce(300, startFlowering);
-    e.createEvent("",START_FLOWERING);
+    e.createEvent("0",START_FLOWERING);
   }
 }
 
@@ -272,9 +272,14 @@ const unsigned long getGrowMode(void) {
 /* Status Functions */
 
 void getHeight(void) {
-  e.createEvent("",GET_DISTANCE);
+  e.createEvent("0",GET_DISTANCE);
 }
 
 void getHumidity(void) {
-  e.createEvent("",GET_HUMIDITY);
+  e.createEvent("0",GET_HUMIDITY);
 }
+
+void getTemp(void) {
+  e.createEvent("0",GET_AIR_TEMP);
+}
+
