@@ -37,6 +37,7 @@ unsigned long lastMoistureAttempt;
 boolean humidityTooHigh;
 boolean tempTooHigh;
 boolean moistureTooLow;
+boolean tempEmergency;
 
 RTC_DS1307 RTC;
 time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
@@ -46,12 +47,13 @@ time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
 
 void setup () {
  
-  c.reset(); // reset flash settings
+  
   Wire.begin();
   Serial.begin(BAUD_RATE);
   Serial3.begin(BAUD_RATE); // XBee
 
-  /* Set up clock */ 
+  // c.reset(); // reset flash settings
+  // setTime(18,59,50,1,1,2016);
   RTC.begin();
   setSyncProvider(syncProvider);     //reference our syncProvider function instead of RTC_DS1307::get()
   DEBUG("Current time is - " + String(hour()) + ":" + String(minute()) + " on " + String(month()) + "-" + String(day()) + "-" + String(year()));
@@ -61,17 +63,15 @@ void setup () {
   new eventIncoming(&e, setTemp, SET_AIR_TEMP);
   new eventIncoming(&e, setHeight, SET_HEIGHT);
 
-  DEBUG("Light time on - " + String(c.getLightOnTime()));
-  DEBUG("Light start time - " + String(c.getLightStartTime()));
-  if(getGrowMode())
-    DEBUG("Grow mode is flower");
-  else
-    DEBUG("Grow mode is veg");
-  DEBUG("Flower at height is - "+ String(FLOWER_AT_HEIGHT));
+  /* Set up report out */
+  new eventOutgoing(&e, getTime, SET_TIME, GET_TIME);
+  new eventOutgoing(&e, getGrowMode, SET_GROW_MODE, GET_GROW_MODE);
+  new eventOutgoing(&e, getLightOn, SET_LIGHT_ON, GET_LIGHT_ON);
+  new eventOutgoing(&e, getAverageHeight, SET_AVERAGE_HEIGHT, GET_AVERAGE_HEIGHT);
 
   resetHeightMeasurements();
   lastTempAttempt = lastHumidityAttempt = lastMoistureAttempt = now();
-  humidityTooHigh = tempTooHigh = moistureTooLow = false;
+  humidityTooHigh = tempTooHigh = moistureTooLow = tempEmergency = false;
   
   /* Set up alarms */
   Alarm.timerRepeat(c.getHeightInterval(), getHeight);
@@ -97,15 +97,29 @@ void loop()
 /* Light Control */
 
 void scheduleLight(void) {
-  const long current = (second() + (((long) minute())*60L) + (((long) hour())*3600L));
+  const long timeInDay = 24L* 60L*60L;
+  const long current = (second() + (((long) minute())*60L) + (((long) hour())*3600L))+1; // +1 to avoid edge case
   const long startTime = c.getLightStartTime();
   const long runTime = c.getLightOnTime();
   const long endTime = startTime + runTime;
-  const long timeInDay = 24L*60L*60L;
-  const long timeLeft = (current - endTime) % timeInDay;
-  
-  if(!(timeLeft >= 0 && timeLeft < timeInDay - runTime)) {
-    array.turnOnOne(timeInDay - timeLeft);
+  const long nightTime = timeInDay - runTime;
+  const long timeLeft = (((endTime - current) + nightTime)) % timeInDay;
+  const long clockOnTime = timeInDay- (timeInDay - timeLeft) - nightTime;
+
+  DEBUG("Setting up clock");
+  DEBUG(current);
+  DEBUG(endTime);
+  DEBUG(timeInDay);
+  DEBUG(nightTime);
+  DEBUG(timeLeft);
+  DEBUG(clockOnTime);
+
+  if(clockOnTime > 0) {
+    DEBUG("Woke up during the day");
+    array.turnOnOne(clockOnTime+1); // add that second back!
+  } else {
+    DEBUG("Woke up during the night");
+    array.turnOffOne();
   }
 }
 
@@ -113,8 +127,12 @@ void scheduleLight(void) {
 
 void setTemp(const unsigned long h) {
   DEBUG(String("Temp is ")+String(h));
-  if(h >= c.getDesiredAirTemp() && now() - lastTempAttempt < GIVE_UP_ON_LIGHT_AFTER) {
-    DEBUG("Temp is too high. Turning on fan.");
+  if(
+      h >= c.getDesiredAirTemp() && 
+      h < c.getMaxAirTemp() && 
+      now() - lastTempAttempt < GIVE_UP_ON_LIGHT_AFTER
+    ) {
+    DEBUG("Temp is too high but no danger. Turning on fan.");
     tempTooHigh = true;
     array.turnOnTwo(); // turn on fan
     getHumidity(); // start checking humidity
@@ -128,9 +146,14 @@ void setTemp(const unsigned long h) {
         getHumidity();
         e.createEvent("0",SET_FAN_ON); // Relay this out
       }
+      if(tempEmergency == true) {
+        tempEmergency = false;
+        scheduleLight();
+      }
     } else {
       // We can't seem to control the temp so turn off the light
       array.turnOffOne();
+      tempEmergency = true;
       e.createEvent("1",TEMP_EMERGENCY);
     }
   }
@@ -268,6 +291,12 @@ void startFlowering(void) {
   }
 }
 
+/* Status Functions */
+
+const unsigned long getAverageHeight(void) {
+  return heightAverage();
+}
+
 const unsigned long getGrowMode(void) {
   if(c.getLightOnTime() == LIGHT_ON_TIME_FLOWER) {
     return 1;
@@ -277,8 +306,6 @@ const unsigned long getGrowMode(void) {
     return 3;
   }
 }
-
-/* Status Functions */
 
 void getHeight(void) {
   e.createEvent("0",GET_DISTANCE);
@@ -292,7 +319,11 @@ void getTemp(void) {
   e.createEvent("0",GET_AIR_TEMP);
 }
 
-void getLightOn(void) {
-  e.createEvent(array.isOnOne(),GET_AIR_TEMP);
+const unsigned long  getLightOn(void) {
+  return array.isOnOne();
+}
+
+const unsigned long getTime(void) {
+  return now();
 }
 
