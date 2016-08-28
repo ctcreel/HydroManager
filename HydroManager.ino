@@ -129,6 +129,7 @@ void setTemp(const unsigned long h) {
   DEBUG(String("Temp is ")+String(h));
 
   if(h >= c.getMaxAirTemp()) {
+    // temp is above maximimum.
     temperatureEmergency();
   } else if(h >= c.getDesiredAirTemp()) {
     DEBUG("Temp is too high but no danger. Turning on fan.");
