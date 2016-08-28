@@ -33,11 +33,12 @@ unsigned int heightMeasurements[10];
 unsigned int heightMeasures;
 unsigned long lastTempAttempt;
 unsigned long lastHumidityAttempt;
-unsigned long lastMoistureAttempt;
 boolean humidityTooHigh;
 boolean tempTooHigh;
-boolean moistureTooLow;
 boolean tempEmergency;
+boolean moistureTooLow;
+unsigned long lastMoistureAttempt;
+
 
 RTC_DS1307 RTC;
 time_t syncProvider()     //this does the same thing as RTC_DS1307::get()
@@ -52,7 +53,7 @@ void setup () {
   Serial.begin(BAUD_RATE);
   Serial3.begin(BAUD_RATE); // XBee
 
-  // c.reset(); // reset flash settings
+  c.reset(); // reset flash settings
   // setTime(18,59,50,1,1,2016);
   RTC.begin();
   setSyncProvider(syncProvider);     //reference our syncProvider function instead of RTC_DS1307::get()
@@ -124,21 +125,18 @@ void scheduleLight(void) {
 }
 
 /* Fan Control */
-
 void setTemp(const unsigned long h) {
   DEBUG(String("Temp is ")+String(h));
-  if(
-      h >= c.getDesiredAirTemp() && 
-      h < c.getMaxAirTemp() && 
-      now() - lastTempAttempt < GIVE_UP_ON_LIGHT_AFTER
-    ) {
+
+  if(h >= c.getMaxAirTemp()) {
+    temperatureEmergency();
+  } else if(h >= c.getDesiredAirTemp()) {
     DEBUG("Temp is too high but no danger. Turning on fan.");
     tempTooHigh = true;
     array.turnOnTwo(); // turn on fan
     getHumidity(); // start checking humidity
     e.createEvent("1",SET_FAN_ON); // Relay this out
   } else {
-    if(h < c.getDesiredAirTemp()) {
       tempTooHigh = false;
       lastTempAttempt = now();
       if(humidityTooHigh == false) {
@@ -150,12 +148,22 @@ void setTemp(const unsigned long h) {
         tempEmergency = false;
         scheduleLight();
       }
-    } else {
-      // We can't seem to control the temp so turn off the light
-      array.turnOffOne();
-      tempEmergency = true;
-      e.createEvent("1",TEMP_EMERGENCY);
     }
+}
+
+void temperatureEmergency(void) {
+  DEBUG("Temp is danegrously high, turning off light!");
+  if(!tempEmergency) {
+    array.turnOffOne();
+    tempEmergency = true;
+  }
+  e.createEvent("1",TEMP_EMERGENCY);
+}
+
+void getTemp(void) {
+  e.createEvent("0",GET_AIR_TEMP);
+  if(now() - lastTempAttempt >= GIVE_UP_ON_LIGHT_AFTER) {
+    temperatureEmergency();
   }
 }
 
@@ -313,10 +321,6 @@ void getHeight(void) {
 
 void getHumidity(void) {
   e.createEvent("0",GET_HUMIDITY);
-}
-
-void getTemp(void) {
-  e.createEvent("0",GET_AIR_TEMP);
 }
 
 const unsigned long  getLightOn(void) {
