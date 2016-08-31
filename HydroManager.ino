@@ -53,7 +53,7 @@ void setup () {
   Serial.begin(BAUD_RATE);
   Serial3.begin(BAUD_RATE); // XBee
 
-  c.reset(); // reset flash settings
+  // c.reset(); // reset flash settings
   // setTime(18,59,50,1,1,2016);
   RTC.begin();
   setSyncProvider(syncProvider);     //reference our syncProvider function instead of RTC_DS1307::get()
@@ -131,12 +131,10 @@ void setTemp(const unsigned long h) {
   if(h >= c.getMaxAirTemp()) {
     // temp is above maximimum.
     temperatureEmergency();
+    coolTheTent();
   } else if(h >= c.getDesiredAirTemp()) {
     DEBUG("Temp is too high but no danger. Turning on fan.");
-    tempTooHigh = true;
-    array.turnOnTwo(); // turn on fan
-    getHumidity(); // start checking humidity
-    e.createEvent("1",SET_FAN_ON); // Relay this out
+    coolTheTent();
   } else {
       tempTooHigh = false;
       lastTempAttempt = now();
@@ -150,6 +148,13 @@ void setTemp(const unsigned long h) {
         scheduleLight();
       }
     }
+}
+
+void coolTheTent(void) {
+    tempTooHigh = true;
+    array.turnOnTwo(); // turn on fan
+    getHumidity(); // start checking humidity
+    e.createEvent("1",SET_FAN_ON); // Relay this out
 }
 
 void temperatureEmergency(void) {
